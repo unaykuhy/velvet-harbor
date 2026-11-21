@@ -1,5 +1,5 @@
 [
-  { "name": "1-start.jpg", "query": "?shot=start&seed=1" },
-  { "name": "2-play.jpg", "query": "?shot=play&seed=1" },
-  { "name": "3-end.jpg", "query": "?shot=end&seed=1" }
+  { "name": "1-start-menu.jpg", "view": "The Solmar Bay title menu over the real waterfront" },
+  { "name": "2-on-foot.jpg", "view": "Mara on Coral Boulevard, HUD and rotating minimap" },
+  { "name": "3-driving.jpg", "view": "A stolen Vortex Stiletto on a city avenue" }
 ]

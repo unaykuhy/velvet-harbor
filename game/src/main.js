@@ -1,134 +1,126 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
-// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
-// moves between four screens: title, play, paused and game over.
-//
-// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
-// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, LIVES, STEP } from './config.js';
-import { createRandom } from './random.js';
-import { createWorld, EVENT_HIT, EVENT_OVER } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
-import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-import { stageShot } from './shots.js';
+import * as T from 'three';
+import {createRenderer,makeMaterials} from './render.js';
+import {createCity} from './world.js';
+import {createVehicles} from './vehicles.js';
+import {createMara} from './character.js';
+import {createInput} from './input.js';
+import {createHUD} from './hud.js';
+import {createMinimap} from './minimap.js';
+import {readSave,writeSave,applySave} from './save.js';
+import {createAudio} from './audio.js';
 
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
-const MAX_FRAME = 0.25;
+const graphics=createRenderer(),materials=makeMaterials();
+const world=createCity(graphics.scene,materials),vehicles=createVehicles(graphics.scene),mara=createMara(graphics.scene);
+const reflectiveMaterials=new Set();graphics.scene.traverse(object=>{if(object.material?.isMeshStandardMaterial)reflectiveMaterials.add(object.material);});
+const hud=createHUD(),minimap=createMinimap(world),audio=createAudio();
+const state={money:2450,health:100,armor:50,minutes:16*60+40};
+const el=id=>document.getElementById(id);
+let mode='start',activeCar=null,shake=0,elapsed=0,lastSave=0,lastTime=performance.now(),frames=0;
+let cameraReady=false,night=0;
+const lastShadowPosition=new T.Vector3(999,999,999);let lastShadowMinute=-1;
+const input=createInput(el('view'),pause);
+const cameraTarget=new T.Vector3(),desiredCamera=new T.Vector3();
+const initialCars=vehicles.cars.map(car=>({position:car.root.position.clone(),heading:car.heading}));
+el('loading').remove();
+el('continue').disabled=!readSave();
 
-const params = new URLSearchParams(window.location.search);
-const shot = params.get('shot');
-const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
-
-const canvas = document.getElementById('game');
-const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
-
-function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
-  }
+function pause(force=false) {
+  if(mode==='play'){
+    mode='pause';input.enabled=false;el('menu').classList.remove('hidden');hud.show(false);
+    el('menu-label').textContent='SOLMAR BAY / PAUSED';
+    el('intro').textContent='Take a breath. The harbor can wait.';
+    el('new').classList.add('hidden');el('continue').classList.add('hidden');el('save').classList.remove('hidden');el('resume').classList.remove('hidden');
+  } else if(mode==='pause'&&!force)resume();
 }
-
-function saveBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // Storage can be off (private windows): the best score then lasts this visit only.
+function resume(){mode='play';input.enabled=true;el('menu').classList.add('hidden');hud.show(true);audio.start();}
+function begin(load) {
+  if(load){
+    const saved=readSave();if(!saved){hud.toast('No saved game is available.');return;}
+    activeCar=applySave(saved,state,mara,vehicles);
+  }else{
+    state.money=2450;state.health=100;state.armor=50;state.minutes=1000;
+    mara.root.position.set(8,0,150);mara.reset();activeCar=null;
+    vehicles.cars.forEach((car,i)=>{car.root.position.copy(initialCars[i].position);car.heading=initialCars[i].heading;car.root.rotation.set(0,car.heading,0);car.speed=0;car.damage=0;car.owned=false;});
   }
+  mara.root.visible=!activeCar;input.yaw=activeCar?.heading||0;input.pitch=.16;cameraReady=false;
+  resume();hud.toast(load?'Welcome back to Solmar Bay.':'Mara Vale · Coral Boulevard. Your afternoon starts here.');
 }
+function saveGame(){const ok=writeSave(state,mara,vehicles,activeCar);hud.toast(ok?'Game saved on this browser.':'Storage unavailable. Your game could not be saved.');return ok;}
+el('new').onclick=()=>begin(false);el('continue').onclick=()=>begin(true);el('resume').onclick=resume;
+el('save').onclick=()=>{const ok=saveGame();el('intro').textContent=ok?'Game saved on this browser.':'Storage unavailable. Please keep this page open.';};
+el('controls').onclick=()=>el('controls-panel').classList.toggle('hidden');
+addEventListener('pagehide',()=>{if(mode!=='start')writeSave(state,mara,vehicles,activeCar);});
 
-function runShot(name) {
-  const scene = stageShot(name, world);
-  let painted = 0;
-  function paint() {
-    renderer.draw(world.state, scene.screen, scene.best);
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
-}
-
-function runGame() {
-  const input = createInput(canvas);
-  let screen = SCREEN_TITLE;
-  let best = readBest();
-  let accumulator = 0;
-  let last = performance.now();
-
-  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
-  function announce(message) {
-    status.textContent = message;
-  }
-
-  function startGame() {
-    world.reset();
-    accumulator = 0;
-    screen = SCREEN_PLAY;
-    announce(`Playing. ${LIVES} lives.`);
-  }
-
-  function endGame() {
-    screen = SCREEN_OVER;
-    if (world.state.score > best) {
-      best = world.state.score;
-      saveBest(best);
-    }
-    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
-  }
-
-  function handleActions() {
-    const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
-    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
-      screen = SCREEN_PLAY;
-      announce('Playing.');
-    }
-  }
-
-  function step() {
-    if (screen === SCREEN_TITLE) {
-      world.step(STEP, 0, true);
-      return;
-    }
-    const events = world.step(STEP, input.direction(), false);
-    if (events & EVENT_OVER) endGame();
-    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
-  }
-
-  function frame(now) {
-    requestAnimationFrame(frame);
-    accumulator += Math.min((now - last) / 1000, MAX_FRAME);
-    last = now;
-    handleActions();
-    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
-      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
-        step();
-        accumulator -= STEP;
+function interact() {
+  if(activeCar){
+    if(Math.abs(activeCar.speed)>3){hud.toast('Slow down before stepping out.');return;}
+    const car=activeCar,p=car.root.position;
+    const offsets=[[-1,0],[1,0],[0,1],[0,-1]];
+    for(const [side,end] of offsets){
+      const x=p.x+Math.cos(car.heading)*side*(car.model.width/2+1.1)-Math.sin(car.heading)*end*(car.model.length/2+1);
+      const z=p.z-Math.sin(car.heading)*side*(car.model.width/2+1.1)-Math.cos(car.heading)*end*(car.model.length/2+1);
+      if(!world.blocked(x,z,.4,p.y+.2)&&!vehicles.cars.some(c=>c!==car&&Math.hypot(c.root.position.x-x,c.root.position.z-z)<2)){
+        mara.root.position.set(x,p.y,z);mara.reset();mara.root.visible=true;activeCar=null;car.speed=0;input.consume('Space');hud.toast('Back on foot.');return;
       }
-    } else {
-      accumulator = 0;
     }
-    renderer.draw(world.state, screen, best);
+    hud.toast('The doors are blocked. Find more room.');
+  }else{
+    const car=vehicles.nearest(mara.root.position);
+    if(car){activeCar=car;car.owned=true;mara.root.visible=false;input.yaw=car.heading;hud.toast(`${car.model.name} · W accelerate, S brake, Space handbrake`);}
   }
-
-  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    }
-  });
-
-  announce('Block Dodger. Press Space or click to start.');
-  requestAnimationFrame(frame);
 }
 
-if (shot) runShot(shot);
-else runGame();
+function updateCamera(dt,focus) {
+  const speed=activeCar?Math.abs(activeCar.speed):0;
+  if(activeCar&&!document.pointerLockElement) {
+    input.yaw+=Math.atan2(Math.sin(activeCar.heading-input.yaw),Math.cos(activeCar.heading-input.yaw))*(1-Math.exp(-dt*1.8));
+  }
+  const distance=activeCar?7.8+speed*.055:5.6;
+  const height=activeCar?3.1:2.5;
+  cameraTarget.copy(focus).add(new T.Vector3(0,activeCar?1.05:1.25,0));
+  desiredCamera.set(focus.x+Math.sin(input.yaw)*distance,focus.y+height+Math.sin(input.pitch)*distance,focus.z+Math.cos(input.yaw)*distance);
+  // Pull the camera in along its ray if an architectural surface would hide the protagonist.
+  const direction=desiredCamera.clone().sub(cameraTarget);
+  for(let t=.15;t<=1;t+=.08){const sample=cameraTarget.clone().addScaledVector(direction,t);if(world.blocked(sample.x,sample.z,.2,sample.y)){desiredCamera.copy(cameraTarget).addScaledVector(direction,Math.max(.12,t-.1));break;}}
+  if(!cameraReady){graphics.camera.position.copy(desiredCamera);cameraReady=true;}
+  else graphics.camera.position.lerp(desiredCamera,1-Math.exp(-dt*6));
+  shake*=Math.exp(-dt*7);
+  graphics.camera.position.x+=Math.sin(elapsed*83)*shake*.08;graphics.camera.position.y+=Math.sin(elapsed*63)*shake*.05;
+  graphics.camera.lookAt(cameraTarget);
+  graphics.camera.fov=T.MathUtils.damp(graphics.camera.fov,59+speed*.34,3,dt);graphics.camera.updateProjectionMatrix();
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const realDelta=(now-lastTime)/1000,dt=Math.min(.04,Math.max(.001,realDelta));lastTime=now;elapsed+=dt;frames++;
+  if(mode==='play'){
+    state.minutes=(state.minutes+dt*2)%1440;
+    if(input.consume('KeyE'))interact();
+    if(input.consume('F5'))saveGame();
+    if(activeCar){
+      // Substeps keep high-speed movement from tunneling through narrow props.
+      const count=Math.ceil(dt/.012);for(let i=0;i<count;i++)vehicles.drive(activeCar,dt/count,input,world,force=>{shake=Math.min(3,force/8);audio.impact(force);hud.toast('Hard impact · vehicle damaged');});
+    }else mara.update(dt,input,input.yaw,world);
+    const focus=activeCar?activeCar.root.position:mara.root.position;
+    updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
+    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);
+    hud.update(state,focus,activeCar,vehicles.nearest(focus));if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar);
+    if(elapsed-lastSave>20){writeSave(state,mara,vehicles,activeCar);lastSave=elapsed;}
+  }else if(mode==='start'){
+    const focus=new T.Vector3(0,0,155);night=graphics.updateDay(state.minutes,focus,materials);world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,null);
+    graphics.camera.position.set(304+Math.sin(elapsed*.025)*2,30,244);graphics.camera.lookAt(15,14,55);
+  }
+  audio.update(activeCar?.speed||0,!!activeCar,mode!=='play');
+  reflectiveMaterials.forEach(material=>{material.envMapIntensity=.035+(1-night)*.65;});
+  const shadowFocus=activeCar?activeCar.root.position:mara.root.position;
+  if(shadowFocus.distanceToSquared(lastShadowPosition)>36||Math.abs(state.minutes-lastShadowMinute)>4){
+    graphics.renderer.shadowMap.needsUpdate=true;lastShadowPosition.copy(shadowFocus);lastShadowMinute=state.minutes;
+  }
+  graphics.renderer.render(graphics.scene,graphics.camera);
+}
+requestAnimationFrame(animate);
+
+// Read-only telemetry supports direct browser verification without alternate gameplay paths.
+Object.defineProperty(window,'velvet',{value:{
+  inspect:()=>({mode,position:(activeCar?activeCar.root.position:mara.root.position).toArray(),onFoot:mara.root.visible,car:activeCar?.id||null,speed:activeCar?.speed||0,damage:activeCar?.damage||0,steer:activeCar?.steer||0,heading:activeCar?.heading||mara.root.rotation.y,grounded:mara.grounded,minutes:state.minutes,money:state.money,health:state.health,armor:state.armor,ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),models:vehicles.cars.map(c=>c.model.name),frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,seed:world.seed,wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,save:readSave()})
+},writable:false});
