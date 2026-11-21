@@ -8,7 +8,8 @@ export function readSave() {
   } catch {return null;}
 }
 export function writeSave(state,mara,vehicles,activeCar) {
-  const data={version:1,position:(activeCar?activeCar.root.position:mara.root.position).toArray(),money:state.money,health:state.health,armor:state.armor,minutes:state.minutes,missionProgress:{chapter:0,completed:[]},ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),activeCar:activeCar?.id||null,cars:vehicles.cars.map(c=>({id:c.id,position:c.root.position.toArray(),heading:c.heading,damage:c.damage}))};
+  const persistentCars=vehicles.cars.filter(car=>!car.id.startsWith('traffic-')||car.owned);
+  const data={version:1,position:(activeCar?activeCar.root.position:mara.root.position).toArray(),money:state.money,health:state.health,armor:state.armor,minutes:state.minutes,missionProgress:{chapter:0,completed:[]},ownedCars:persistentCars.filter(c=>c.owned).map(c=>c.id),activeCar:activeCar?.id||null,cars:persistentCars.map(c=>({id:c.id,position:c.root.position.toArray(),heading:c.heading,damage:c.damage}))};
   try{localStorage.setItem(storageKey,JSON.stringify(data));return true;}catch{return false;}
 }
 export function applySave(data,state,mara,vehicles) {
@@ -19,5 +20,7 @@ export function applySave(data,state,mara,vehicles) {
     if(!car||!Array.isArray(saved.position)||saved.position.some(v=>!Number.isFinite(v))||!Number.isFinite(saved.heading))continue;
     car.root.position.fromArray(saved.position);car.heading=saved.heading;car.root.rotation.y=car.heading;car.damage=Math.max(0,Math.min(100,saved.damage||0));car.speed=0;car.owned=(data.ownedCars||[]).includes(car.id);
   }
-  return vehicles.cars.find(c=>c.id===data.activeCar)||null;
+  const active=vehicles.cars.find(c=>c.id===data.activeCar)||null;
+  for(const car of vehicles.cars)if(car.owned)car.ai=false;
+  return active;
 }

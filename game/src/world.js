@@ -1,6 +1,6 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { seededRandom, standard } from './render.js';
+import { seededRandom, standard,surfaceMaterial } from './render.js';
 
 export const avenues = [-240,-160,-80,0,80,160,240];
 export function districtAt(x,z) {
@@ -66,7 +66,7 @@ export function createCity(scene, mat) {
     c.strokeStyle=color;c.lineWidth=3;c.strokeRect(8,8,496,112);c.fillStyle=color;c.textAlign='center';c.textBaseline='middle';
     c.font=`bold ${text.length>16?29:40}px Arial`;c.fillText(text,256,66);
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
-    const material=new T.MeshStandardMaterial({map:texture,roughness:.65,emissive:'#ffffff',emissiveMap:texture,emissiveIntensity:.25});
+    const material=surfaceMaterial({map:texture,roughness:.65,emissive:'#ffffff',emissiveMap:texture,emissiveIntensity:.25});
     const mesh=new T.Mesh(new T.PlaneGeometry(width,width/4),material);mesh.position.set(x,y,z);mesh.rotation.y=rotation;scene.add(mesh);
   }
   function building(x,z,w,d,h,palette,style) {
@@ -229,6 +229,9 @@ export function createCity(scene, mat) {
   for(let i=0;i<3;i++){const light=new T.PointLight('#ffd49b',0,21,2);scene.add(light);nightLights.push(light);}
   function update(time,night,focus) {
     waterMaterial.uniforms.time.value=time;waterMaterial.uniforms.night.value=night;
+    palms.forEach((p,index)=>{for(let l=0;l<9;l++){
+      transform.position.set(p.x+.1,p.h,p.z);transform.rotation.set((l%2)*.13+Math.sin(time*1.1+index*.7)*.035,l/9*Math.PI*2+index,-.1+Math.sin(time*.9+index+l*.4)*.045);transform.scale.setScalar(.8+(index%4)*.08);transform.updateMatrix();leaves.setMatrixAt(index*9+l,transform.matrix);
+    }});leaves.instanceMatrix.needsUpdate=true;
     const nearby=lampPositions.filter(p=>p.distanceToSquared(focus)<4200).sort((a,b)=>a.distanceToSquared(focus)-b.distanceToSquared(focus));
     nightLights.forEach((light,i)=>{light.visible=night>.1;light.intensity=nearby[i]?night*21:0;if(nearby[i])light.position.copy(nearby[i]);});
   }

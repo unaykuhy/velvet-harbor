@@ -2,7 +2,9 @@ import {districtAt} from './world.js';
 export function createHUD() {
   const el=id=>document.getElementById(id);let toastUntil=0;
   function toast(text){el('toast').textContent=text;el('toast').classList.remove('hidden');toastUntil=performance.now()+3500;}
-  function update(state,position,car,nearest) {
+  function update(state,position,car,nearest,wanted=0,searching=false) {
+    const stars=document.querySelector('.stars');stars.textContent='★'.repeat(wanted)+'☆'.repeat(5-wanted);stars.setAttribute('aria-label',`Wanted level ${wanted} of 5`);stars.style.color=wanted?(searching?'#edc48d':'#ffb18c'):'#ffffff55';
+    el('pursuit').textContent=wanted?(searching?'OUT OF SIGHT · KEEP MOVING':'POLICE PURSUIT · BREAK LINE OF SIGHT'):'TRAFFIC SIGNALS ACTIVE · DRIVE WITH CARE';
     el('district').textContent=districtAt(position.x,position.z);
     const hour=Math.floor(state.minutes/60)%24,min=Math.floor(state.minutes%60);
     el('clock').textContent=`SOLMAR BAY · ${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`;

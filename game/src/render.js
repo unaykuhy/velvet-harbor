@@ -1,5 +1,9 @@
 import * as T from 'three';
 
+export function surfaceMaterial(options){
+  return new T.MeshStandardMaterial(options);
+}
+
 export function seededRandom(seed = 73129) {
   let value = seed >>> 0;
   return () => { value = (Math.imul(value, 1664525) + 1013904223) >>> 0; return value / 4294967296; };
@@ -39,30 +43,32 @@ export function canvasTexture(kind, tint = '#dfcbb0') {
 }
 
 export function standard(color, roughness = .7, metalness = 0) {
-  return new T.MeshStandardMaterial({ color, roughness, metalness });
+  return surfaceMaterial({ color, roughness, metalness });
 }
 
 export function makeMaterials() {
   const textured = (kind, color, roughness, repeat = 1) => {
     const map = canvasTexture(kind, color);map.repeat.set(repeat, repeat);
-    return new T.MeshStandardMaterial({ map, roughness });
+    return surfaceMaterial({ map, roughness });
   };
   return {
     asphalt:textured('noise','#35464a',.95,35), sidewalk:textured('sidewalk','#c6c4b0',.85,20),
     grass:textured('grass','#637a4a',1,16), sand:textured('noise','#e2c99d',1,12),
     cream:textured('facade','#e6d9b8',.82),coral:textured('facade','#d58c79',.8),teal:textured('facade','#86b3aa',.7),
-    glass:new T.MeshStandardMaterial({map:canvasTexture('glass','#356c7c'),color:'#b2d1cb',roughness:.24,metalness:.42}),
+    glass:surfaceMaterial({map:canvasTexture('glass','#356c7c'),color:'#b2d1cb',roughness:.24,metalness:.42}),
     white:standard('#eee7cf'),trim:standard('#f6e2bc',.65),dark:standard('#163844',.45,.25),
     pink:standard('#d87d6d'),wood:standard('#8e664d'),roof:standard('#b96f55'),steel:standard('#56777b',.4,.6),
     leaf:standard('#397e55',.9),trunk:standard('#927257',.95),paint:standard('#ebe2bf'),yellow:standard('#e1bf6b'),
-    windowLight:new T.MeshStandardMaterial({color:'#426673',emissive:'#ffbd69',emissiveIntensity:0,roughness:.4}),
-    lamp:new T.MeshStandardMaterial({color:'#fff1ce',emissive:'#ffdb9b',emissiveIntensity:0}),
-    neon:new T.MeshStandardMaterial({color:'#faac9e',emissive:'#ff755f',emissiveIntensity:.5}),
+    windowLight:surfaceMaterial({color:'#426673',emissive:'#ffbd69',emissiveIntensity:0,roughness:.4}),
+    lamp:surfaceMaterial({color:'#fff1ce',emissive:'#ffdb9b',emissiveIntensity:0}),
+    neon:surfaceMaterial({color:'#faac9e',emissive:'#ff755f',emissiveIntensity:.5}),
   };
 }
 
 export function createRenderer() {
-  const renderer = new T.WebGLRenderer({canvas:document.querySelector('#view'),antialias:true,powerPreference:'high-performance'});
+  const canvas=document.querySelector('#view');
+  const renderContext=canvas.getContext('webgl2',{antialias:true,powerPreference:'high-performance'})||canvas.getContext('webgl',{antialias:true});
+  const renderer = new T.WebGLRenderer({canvas,context:renderContext,antialias:true,powerPreference:'high-performance'});
   const context=renderer.getContext(),debug=context.getExtension('WEBGL_debug_renderer_info');
   const software=debug&&/swiftshader|llvmpipe/i.test(context.getParameter(debug.UNMASKED_RENDERER_WEBGL));
   renderer.setPixelRatio(software?.65:Math.min(devicePixelRatio, 1.5));renderer.setSize(innerWidth,innerHeight);

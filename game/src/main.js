@@ -8,11 +8,17 @@ import {createHUD} from './hud.js';
 import {createMinimap} from './minimap.js';
 import {readSave,writeSave,applySave} from './save.js';
 import {createAudio} from './audio.js';
+import {createTraffic} from './traffic.js';
+import {createPedestrians} from './peds.js';
+import {createPolice} from './police.js';
 
 const graphics=createRenderer(),materials=makeMaterials();
 const world=createCity(graphics.scene,materials),vehicles=createVehicles(graphics.scene),mara=createMara(graphics.scene);
 const reflectiveMaterials=new Set();graphics.scene.traverse(object=>{if(object.material?.isMeshStandardMaterial)reflectiveMaterials.add(object.material);});
 const hud=createHUD(),minimap=createMinimap(world),audio=createAudio();
+const traffic=createTraffic(graphics.scene,vehicles);
+const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
+const pedestrians=createPedestrians(graphics.scene,world,traffic,()=>police.offence('pedestrian',activeCar.root.position));
 const state={money:2450,health:100,armor:50,minutes:16*60+40};
 const el=id=>document.getElementById(id);
 let mode='start',activeCar=null,shake=0,elapsed=0,lastSave=0,lastTime=performance.now(),frames=0;
@@ -34,6 +40,7 @@ function pause(force=false) {
 }
 function resume(){mode='play';input.enabled=true;el('menu').classList.add('hidden');hud.show(true);audio.start();}
 function begin(load) {
+  police.reset();traffic.reset();pedestrians.reset();
   if(load){
     const saved=readSave();if(!saved){hud.toast('No saved game is available.');return;}
     activeCar=applySave(saved,state,mara,vehicles);
@@ -66,7 +73,7 @@ function interact() {
     hud.toast('The doors are blocked. Find more room.');
   }else{
     const car=vehicles.nearest(mara.root.position);
-    if(car){activeCar=car;car.owned=true;mara.root.visible=false;input.yaw=car.heading;hud.toast(`${car.model.name} · W accelerate, S brake, Space handbrake`);}
+    if(car){const stolen=!car.owned;activeCar=car;car.owned=true;car.ai=false;mara.root.visible=false;input.yaw=car.heading;hud.toast(`${car.model.name} · W accelerate, S brake, Space handbrake`);if(stolen)police.offence('theft',car.root.position,true);}
   }
 }
 
@@ -79,6 +86,15 @@ function updateCamera(dt,focus) {
   const height=activeCar?3.1:2.5;
   cameraTarget.copy(focus).add(new T.Vector3(0,activeCar?1.05:1.25,0));
   desiredCamera.set(focus.x+Math.sin(input.yaw)*distance,focus.y+height+Math.sin(input.pitch)*distance,focus.z+Math.cos(input.yaw)*distance);
+  // Lift over nearby vehicles so a pursuing light bar cannot fill the camera.
+  if(activeCar){
+    const dx=desiredCamera.x-focus.x,dz=desiredCamera.z-focus.z;
+    for(const other of [...vehicles.cars,...police.cars]){
+      if(other===activeCar)continue;
+      const p=other.root.position,t=((p.x-focus.x)*dx+(p.z-focus.z)*dz)/(dx*dx+dz*dz);
+      if(t>.15&&t<1.25&&Math.hypot(p.x-focus.x-dx*t,p.z-focus.z-dz*t)<other.model.width*1.1)desiredCamera.y=Math.max(desiredCamera.y,focus.y+6.2);
+    }
+  }
   // Pull the camera in along its ray if an architectural surface would hide the protagonist.
   const direction=desiredCamera.clone().sub(cameraTarget);
   for(let t=.15;t<=1;t+=.08){const sample=cameraTarget.clone().addScaledVector(direction,t);if(world.blocked(sample.x,sample.z,.2,sample.y)){desiredCamera.copy(cameraTarget).addScaledVector(direction,Math.max(.12,t-.1));break;}}
@@ -92,25 +108,28 @@ function updateCamera(dt,focus) {
 
 function animate(now) {
   requestAnimationFrame(animate);
-  const realDelta=(now-lastTime)/1000,dt=Math.min(.04,Math.max(.001,realDelta));lastTime=now;elapsed+=dt;frames++;
+  const realDelta=(now-lastTime)/1000,dt=Math.min(.2,Math.max(.001,realDelta));lastTime=now;elapsed+=dt;frames++;
   if(mode==='play'){
     state.minutes=(state.minutes+dt*2)%1440;
     if(input.consume('KeyE'))interact();
     if(input.consume('F5'))saveGame();
     if(activeCar){
+      const previous=activeCar.root.position.clone();
       // Substeps keep high-speed movement from tunneling through narrow props.
-      const count=Math.ceil(dt/.012);for(let i=0;i<count;i++)vehicles.drive(activeCar,dt/count,input,world,force=>{shake=Math.min(3,force/8);audio.impact(force);hud.toast('Hard impact · vehicle damaged');});
-    }else mara.update(dt,input,input.yaw,world);
+      const count=Math.ceil(dt/.012);for(let i=0;i<count;i++)vehicles.drive(activeCar,dt/count,input,world,(force,other)=>{shake=Math.min(3,force/8);audio.impact(force);if(force>5)hud.toast('Hard impact · vehicle damaged');if(other)police.offence('collision',activeCar.root.position);});
+      if(traffic.checkRedCrossing(activeCar,previous))police.offence('red light',activeCar.root.position,true);
+    }else{const walkingSteps=Math.ceil(dt/.02);for(let i=0;i<walkingSteps;i++)mara.update(dt/walkingSteps,input,input.yaw,world);}
     const focus=activeCar?activeCar.root.position:mara.root.position;
+    const steps=Math.ceil(dt/.012);for(let i=0;i<steps;i++){traffic.update(dt/steps,activeCar,focus,pedestrians.people);police.update(dt/steps,focus,activeCar,realDelta/steps);pedestrians.update(dt/steps,activeCar,focus,[...vehicles.cars,...police.cars]);}
     updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
     world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);
-    hud.update(state,focus,activeCar,vehicles.nearest(focus));if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar);
+    hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
     if(elapsed-lastSave>20){writeSave(state,mara,vehicles,activeCar);lastSave=elapsed;}
   }else if(mode==='start'){
     const focus=new T.Vector3(0,0,155);night=graphics.updateDay(state.minutes,focus,materials);world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,null);
     graphics.camera.position.set(304+Math.sin(elapsed*.025)*2,30,244);graphics.camera.lookAt(15,14,55);
   }
-  audio.update(activeCar?.speed||0,!!activeCar,mode!=='play');
+  audio.update(activeCar?.speed||0,!!activeCar,mode!=='play',police.siren);
   reflectiveMaterials.forEach(material=>{material.envMapIntensity=.035+(1-night)*.65;});
   const shadowFocus=activeCar?activeCar.root.position:mara.root.position;
   if(shadowFocus.distanceToSquared(lastShadowPosition)>36||Math.abs(state.minutes-lastShadowMinute)>4){
@@ -122,5 +141,15 @@ requestAnimationFrame(animate);
 
 // Read-only telemetry supports direct browser verification without alternate gameplay paths.
 Object.defineProperty(window,'velvet',{value:{
-  inspect:()=>({mode,position:(activeCar?activeCar.root.position:mara.root.position).toArray(),onFoot:mara.root.visible,car:activeCar?.id||null,speed:activeCar?.speed||0,damage:activeCar?.damage||0,steer:activeCar?.steer||0,heading:activeCar?.heading||mara.root.rotation.y,grounded:mara.grounded,minutes:state.minutes,money:state.money,health:state.health,armor:state.armor,ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),models:vehicles.cars.map(c=>c.model.name),frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,seed:world.seed,wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,save:readSave()})
+  inspect:()=>({
+    mode,position:(activeCar?activeCar.root.position:mara.root.position).toArray(),
+    onFoot:mara.root.visible,car:activeCar?.id||null,speed:activeCar?.speed||0,damage:activeCar?.damage||0,steer:activeCar?.steer||0,
+    heading:activeCar?.heading??mara.root.rotation.y,grounded:mara.grounded,minutes:state.minutes,money:state.money,health:state.health,armor:state.armor,
+    ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),models:vehicles.cars.map(c=>c.model.name),
+    frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,shaderPrograms:graphics.renderer.info.programs.length,seed:world.seed,
+    wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,
+    windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,save:readSave(),
+    wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
+    trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
+  })
 },writable:false});

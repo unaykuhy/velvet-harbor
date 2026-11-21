@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import { standard } from './render.js';
+import { standard,surfaceMaterial } from './render.js';
 import { bridgeHeight } from './world.js';
 
 export const vehicleModels = [
@@ -53,8 +53,8 @@ export function buildCar(model) {
   part(0,.65,-l-.065,w*.65,.22,.08,black);
   for(let x=-w*.28;x<w*.32;x+=.12)part(x,.65,-l-.11,.025,.14,.02,chrome);
   part(0,.46,-l,w*.88,.09,.14,chrome);part(0,.46,l,w*.86,.09,.13,chrome);
-  const headlight=new T.MeshStandardMaterial({color:'#fff4d2',emissive:'#fff1c0',emissiveIntensity:1.4});
-  const tail=new T.MeshStandardMaterial({color:'#f56356',emissive:'#ff382e',emissiveIntensity:.8});
+   const headlight=surfaceMaterial({color:'#fff4d2',emissive:'#fff1c0',emissiveIntensity:1.4});
+  const tail=surfaceMaterial({color:'#f56356',emissive:'#ff382e',emissiveIntensity:.8});
   for(const x of [-w*.35,w*.35]) {
     part(x,h*.78,-l-.07,w*.2,.13,.07,headlight);part(x,.79,l+.06,w*.25,.12,.07,tail);
     part(x*1.45,h+.12,-.6,.23,.13,.32,paint);
@@ -89,12 +89,14 @@ export function buildCar(model) {
 
 export function createVehicles(scene) {
   const cars=[];
+  const external=[];
   const positions=[[5,149,0],[-6,116,0],[86,181,Math.PI],[153,92,0],[-74,195,Math.PI/2],[6,-35,0],[-86,-108,Math.PI],[166,-186,0],[-153,-50,Math.PI],[231,138,0],[-230,74,Math.PI],[-35,233,Math.PI/2],[111,7,Math.PI/2],[75,-234,Math.PI/2],[6,59,0]];
   positions.forEach(([x,z,heading],index)=>{
     const car=buildCar(vehicleModels[index%5]);car.id=`bay-${index}`;car.root.position.set(x,.02,z);car.heading=heading;car.root.rotation.y=heading;scene.add(car.root);cars.push(car);
   });
   function nearest(position) {return cars.filter(car=>Math.abs(car.speed)<1&&car.root.position.distanceTo(position)<4.6).sort((a,b)=>a.root.position.distanceToSquared(position)-b.root.position.distanceToSquared(position))[0];}
   function drive(car,dt,input,world,onImpact) {
+    const previousHeading=car.heading;
     const throttle=Number(input.down('KeyW'))-Number(input.down('KeyS'));
     const handbrake=input.down('Space');
     const braking=throttle!==0&&Math.sign(throttle)!==Math.sign(car.speed)&&Math.abs(car.speed)>1;
@@ -112,9 +114,12 @@ export function createVehicles(scene) {
       const z=next.z+direction.z*car.model.length*end-Math.sin(car.heading)*car.model.width*side;
       return world.blocked(x,z,.2,bridgeHeight(next.x,next.z));
     }));
-    const other=cars.some(c=>c!==car&&Math.hypot(c.root.position.x-next.x,c.root.position.z-next.z)<(c.model.length+car.model.length)*.36);
+    const other=[...cars,...external].find(c=>c!==car&&carsOverlap(car,next,c,c.root.position,.15));
     if(collides||other){
-      const force=Math.abs(car.speed);if(force>5){car.damage=Math.min(100,car.damage+force*1.2);onImpact(force);}
+      car.heading=previousHeading;
+      const force=Math.abs(car.speed);
+      if(force>5)car.damage=Math.min(100,car.damage+force*.45);
+      if(force>5||(other&&force>1))onImpact(force,other);
       car.speed*=-.23;
     }else car.root.position.copy(next);
     car.root.position.y=bridgeHeight(car.root.position.x,car.root.position.z)+.02;
@@ -131,12 +136,34 @@ export function createVehicles(scene) {
       car.root.visible=car===active||car.root.position.distanceToSquared(focus)<100*100;
       car.beam.intensity=night*15;
       car.smoke.children.forEach((p,i)=>{
-        p.visible=car.damage>40;
+        const dust=car===active&&Math.abs(car.speed)>8&&Math.abs(car.steer)>.25;
+        p.visible=car.damage>40||dust;
         const phase=(time*.45+i/7)%1;
-        p.position.set(Math.sin(i*7+time)*phase*.55,car.model.height+phase*2.5,-car.model.length*.3);
+        p.position.set(Math.sin(i*7+time)*phase*.55,dust?.2+phase*.6:car.model.height+phase*2.5,dust?car.model.length*.4+phase*2:-car.model.length*.3);
         p.scale.setScalar(.35+phase*2.2);
       });
     }
   }
-  return {cars,nearest,drive,update};
+  return {cars,external,nearest,drive,update};
+}
+
+// Separating axes for two oriented car footprints; every moving system shares this test.
+export function carsOverlap(a,pa,b,pb,padding=0) {
+  if(Math.abs(pa.y-pb.y)>2)return false;
+  const dx=pb.x-pa.x,dz=pb.z-pa.z;
+  if(dx*dx+dz*dz>64)return false;
+  const axes=car=>[[Math.cos(car.heading),-Math.sin(car.heading)],[-Math.sin(car.heading),-Math.cos(car.heading)]];
+  const aa=axes(a),bb=axes(b);
+  for(const [x,z] of [...aa,...bb]){
+    const ar=Math.abs(x*aa[0][0]+z*aa[0][1])*a.model.width/2+Math.abs(x*aa[1][0]+z*aa[1][1])*a.model.length/2;
+    const br=Math.abs(x*bb[0][0]+z*bb[0][1])*b.model.width/2+Math.abs(x*bb[1][0]+z*bb[1][1])*b.model.length/2;
+    if(Math.abs(dx*x+dz*z)>ar+br+padding)return false;
+  }
+  return true;
+}
+
+export function animateAICar(car,dt) {
+  car.root.rotation.y=car.heading;
+  for(const wheel of car.wheels)wheel.rotation.x-=car.speed*dt/.4;
+  for(const wheel of car.frontWheels)wheel.rotation.y=car.steer||0;
 }
