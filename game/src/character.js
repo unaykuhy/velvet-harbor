@@ -10,11 +10,13 @@ export function createMara(scene) {
   const torsoProfile=[new T.Vector2(.21,0),new T.Vector2(.25,.15),new T.Vector2(.22,.35),new T.Vector2(.28,.58),new T.Vector2(.3,.64),new T.Vector2(.14,.7)];
   const torso=new T.Mesh(new T.LatheGeometry(torsoProfile,14),shirt);torso.position.y=.84;root.add(torso);
   ellipsoid(root,0,.88,0,.25,.22,.19,pants);
-  ellipsoid(root,0,1.59,0,.11,.15,.11,skin);
-  ellipsoid(root,0,1.77,-.015,.17,.23,.16,skin);
-  ellipsoid(root,0,1.87,.025,.18,.16,.17,hair);
-  ellipsoid(root,0,1.69,.15,.15,.2,.12,hair);
-  ellipsoid(root,0,1.75,-.16,.045,.065,.045,skin);
+  const headParts=[];
+  const addHead=(parent,x,y,z,sx,sy,sz,material)=>{const mesh=ellipsoid(parent,x,y,z,sx,sy,sz,material);headParts.push(mesh);return mesh;};
+  addHead(root,0,1.59,0,.11,.15,.11,skin);
+  addHead(root,0,1.77,-.015,.17,.23,.16,skin);
+  addHead(root,0,1.87,.025,.18,.16,.17,hair);
+  addHead(root,0,1.69,.15,.15,.2,.12,hair);
+  addHead(root,0,1.75,-.16,.045,.065,.045,skin);
   const limbs=[];
   for(const side of [-1,1]) {
     const leg=new T.Group();leg.position.set(side*.13,.87,0);root.add(leg);
@@ -53,5 +55,5 @@ export function createMara(scene) {
     torso.position.y=.84+(grounded?Math.abs(Math.sin(phase))*.025:0);
   }
   function reset(){velocity.set(0,0,0);vertical=0;grounded=true;}
-  return {root,velocity,update,reset,get grounded(){return grounded;}};
+  return {root,velocity,update,reset,headParts,get grounded(){return grounded;},get stride(){return phase;}};
 }

@@ -21,6 +21,7 @@ function extrudedProfile(points,width,material) {
 export function buildCar(model) {
   const root=new T.Group();const paint=standard(model.color,.26,.5),glass=standard('#668b98',.12,.6),chrome=standard('#c1cacc',.23,.83);
   const rubber=standard('#17232a',.91),black=standard('#1b3037',.55),seat=standard('#b48c68',.9);
+  const shell=new T.Group(),interior=new T.Group();root.add(shell,interior);
   const l=model.length/2,w=model.width,h=model.height;
   const body=extrudedProfile([[-l,.55],[-l+.15,h*.85],[-l+.7,h],[-.7,h+.07],[.3,h],[l-.4,h*.8],[l,.67],[l-.1,.42],[-l+.2,.42]],w,paint);
   const surface=body.geometry.attributes.position;
@@ -82,9 +83,35 @@ export function buildCar(model) {
     const geometry=child.geometry.clone().applyMatrix4(child.matrix);
     staticParts.get(child.material).push(geometry.index?geometry.toNonIndexed():geometry);root.remove(child);
   }
-  for(const [material,geometries] of staticParts){root.add(new T.Mesh(mergeGeometries(geometries),material));geometries.forEach(g=>g.dispose());}
+  for(const [material,geometries] of staticParts){shell.add(new T.Mesh(mergeGeometries(geometries),material));geometries.forEach(g=>g.dispose());}
+  // Driver cockpit: a dashboard with lit gauges and a steering wheel that turns with the
+  // steering input, seen from the first-person driving view. The shell stays separate so it
+  // can be hidden from inside without losing the cockpit.
+  const driverX=-w*.28,eyeY=model.kind==='roadster'?h+.52:h+model.roof*.5;
+  const dashMaterial=standard('#1d2b33',.5,.12),gaugeMaterial=surfaceMaterial({color:'#2a2f33',emissive:'#ffca7a',emissiveIntensity:.95});
+  function interiorPart(x,y,z,a,b,c,material){
+    const mesh=new T.Mesh(new T.BoxGeometry(a,b,c),material);mesh.position.set(x,y,z);interior.add(mesh);return mesh;
+  }
+  interiorPart(0,eyeY-.44,-.58,w*.82,.2,.28,dashMaterial);
+  interiorPart(0,eyeY-.35,-.58,w*.84,.05,.32,black);
+  interiorPart(driverX,eyeY-.32,-.72,.24,.11,.03,gaugeMaterial);
+  interiorPart(w*.24,eyeY-.33,-.72,.17,.08,.03,gaugeMaterial);
+  const wheelGeometries=[new T.TorusGeometry(.17,.024,10,20)];
+  for(const angle of [-1.05,0,1.05]){const spoke=new T.BoxGeometry(.31,.045,.03);spoke.rotateZ(angle);wheelGeometries.push(spoke);}
+  const hub=new T.CylinderGeometry(.05,.05,.06,10);hub.rotateX(Math.PI/2);wheelGeometries.push(hub);
+  const wheelSpin=new T.Group();
+  wheelSpin.add(new T.Mesh(mergeGeometries(wheelGeometries),chrome));
+  const column=new T.Group();column.position.set(driverX,eyeY-.3,-.42);column.rotation.x=-1.05;column.add(wheelSpin);interior.add(column);
+  interior.updateMatrixWorld(true);
+  const interiorParts=new Map();
+  for(const child of [...interior.children])if(child.isMesh){
+    if(!interiorParts.has(child.material))interiorParts.set(child.material,[]);
+    const geometry=child.geometry.clone().applyMatrix4(child.matrix);
+    interiorParts.get(child.material).push(geometry.index?geometry.toNonIndexed():geometry);interior.remove(child);
+  }
+  for(const [material,geometries] of interiorParts){interior.add(new T.Mesh(mergeGeometries(geometries),material));geometries.forEach(g=>g.dispose());}
   root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-  return {root,wheels,frontWheels,beam,smoke,paint,model,speed:0,steer:0,heading:0,damage:0,owned:false};
+  return {root,shell,interior,steeringWheel:wheelSpin,driverEye:new T.Vector3(driverX,eyeY,.12),wheels,frontWheels,beam,smoke,paint,model,speed:0,steer:0,heading:0,damage:0,owned:false};
 }
 
 export function createVehicles(scene) {
@@ -144,6 +171,7 @@ export function createVehicles(scene) {
     car.root.rotation.set(0,car.heading,Math.max(-.025,Math.min(.025,-car.steer*car.speed*.003)));
     car.wheels.forEach(w=>w.rotation.x-=car.speed*dt/.4);
     car.frontWheels.forEach(w=>w.rotation.y=car.steer);
+    car.steeringWheel.rotation.z=-car.steer*3.2;
     car.paint.color.set(car.model.color).multiplyScalar(1-car.damage*.003);
   }
   const headlight=new T.SpotLight('#ffe8b3',0,38,.65,.7,1.5);scene.add(headlight,headlight.target);
@@ -184,4 +212,5 @@ export function animateAICar(car,dt) {
   car.root.rotation.y=car.heading;
   for(const wheel of car.wheels)wheel.rotation.x-=car.speed*dt/.4;
   for(const wheel of car.frontWheels)wheel.rotation.y=car.steer||0;
+  car.steeringWheel.rotation.z=-(car.steer||0)*3.2;
 }

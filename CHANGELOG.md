@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-22 — Milestone 3c: two camera views (chase + first-person)
+
+- **Two switchable views** (`game/src/main.js`): the existing spring chase camera plus a new first-person view — Mara's eyes on foot (y 1.68, subtle walk bob, head meshes hidden so the camera never sits inside her geometry) and the driver's seat in a car (over-dashboard view through the windshield). Toggle with the **V** key or the new clickable HUD button (`#view-toggle`, `game/index.html`); the transition is a smooth damped blend (no hard jump). First-person FOV 64 + speed·0.18.
+- **Cockpit interiors** (`game/src/vehicles.js`): every car now bakes its exterior into a separate `shell` group (hidden in first person, so the camera is never inside the car's own body) and gains a dashboard with amber emissive gauges (readable at blue hour) plus a steering wheel that turns with steering input (`steeringWheel.rotation.z = −steer·3.2` in `drive()`/`animateAICar()`), merged to 2–3 extra meshes per car.
+- **Save v2** (`game/src/save.js`): saves now write `version:2` with `cameraView: 'chase' | 'first'`; v1 saves still load (migration intact) and any missing/invalid field defaults to `'chase'`. The choice persists through autosave, F5, pagehide, and the pause-menu Save.
+- Verification: bundle rebuilt (esbuild iife minified, 583.8 kB); tests **10/10** (6 prior + 4 new camera-view save tests), `tsc --noEmit` **0 errors**, `node main.ts` **exit 0** (dossier 762,031 B; vendor hash dc671875… unchanged), Playwright `verify-m3c-cameras.cjs` **PASS** — default chase, V + HUD toggles both directions, walk + drive in both views (4.64 m chase / 3.34 m first-person), steering wheel −0.604 rad live, save-in-first-person → reload → Continue restores **first-person**, **0 console / 0 page errors / 0 non-file requests**, software render 0.25 FPS (SwiftShader, not a GPU claim). Pixel evidence: dashboard region (23,32,57) with lit gauges + chrome wheel vs road (3,4,34); screenshots `m3c-chase-car.jpg`, `m3c-first-car.jpg`, `m3c-chase-foot.jpg`, `m3c-first-foot.jpg` (1280×720 each) in `velvet-harbor-preview/`. Full numbers in QA.md (Milestone 3c section).
+
 ## 2026-11-22 — Milestone 3b-2: post-processing pipeline
 
 - **Post-processing** (new `game/src/postfx.js`, wired in `game/src/main.js`): EffectComposer chain RenderPass → UnrealBloomPass (threshold 0.85, strength 0.65, half-res on software renderers) → GradeShader (contrast 1.09, navy shadows, warm highlights, vignette 0.55) → OutputPass (ACESFilmic + sRGB). HalfFloat MSAA 4× render target on WebGL2.

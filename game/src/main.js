@@ -24,7 +24,7 @@ const traffic=createTraffic(graphics.scene,vehicles);
 const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
 police.onWantedChange(detail=>window.dispatchEvent(new CustomEvent('velvet:wanted-change',{detail})));
 const pedestrians=createPedestrians(graphics.scene,world,traffic,()=>police.offence('pedestrian',activeCar.root.position));
-const state={money:2450,health:100,armor:50,minutes:18*60+30};
+const state={money:2450,health:100,armor:50,minutes:18*60+30,cameraView:'chase'};
 const el=id=>document.getElementById(id);
 let mode='start',activeCar=null,shake=0,elapsed=0,lastSave=0,lastTime=performance.now(),frames=0;
 let cameraReady=false,night=0;
@@ -33,6 +33,36 @@ const input=createInput(el('view'),pause);
 const cameraTarget=new T.Vector3(),desiredCamera=new T.Vector3(),cameraSpringPosition=new T.Vector3(),cameraSpringVelocity=new T.Vector3();
 let cameraSpringYaw=0,cameraSpringYawVelocity=0,cameraSpringChase=false,lastMode=mode,testManual=false;
 let bodyCar=null,bodyLastSpeed=0,bodyAcceleration=0;
+// Two switchable camera views: the spring chase camera and a first-person view
+// (Mara's eyes on foot, the driver's seat in a car). The choice persists in the save.
+let viewBlend=0;
+const firstPersonPosition=new T.Vector3(),firstPersonTarget=new T.Vector3();
+function toggleView(){
+  state.cameraView=state.cameraView==='first'?'chase':'first';
+  el('view-toggle').textContent=state.cameraView==='first'?'VIEW · FIRST-PERSON':'VIEW · CHASE';
+  hud.toast(state.cameraView==='first'?'First-person view.':'Chase camera view.');
+}
+function refreshViewVisibility(){
+  const first=state.cameraView==='first';
+  if(activeCar?.shell)activeCar.shell.visible=!first;
+  for(const car of vehicles.cars)if(car!==activeCar&&car.shell)car.shell.visible=true;
+  const hiddenHead=first&&!activeCar;
+  for(const part of mara.headParts)part.visible=!hiddenHead;
+}
+// First-person eye pose: Mara's eyes with a subtle walk bob, or the driver's seat
+// looking over the dashboard and steering wheel through the windshield.
+function firstPersonPose(){
+  const heading=activeCar?activeCar.heading:0;
+  if(activeCar){
+    const eye=activeCar.driverEye,p=activeCar.root.position;
+    firstPersonPosition.set(p.x+eye.x*Math.cos(heading)+eye.z*Math.sin(heading),p.y+eye.y,p.z-eye.x*Math.sin(heading)+eye.z*Math.cos(heading));
+  }else{
+    const bob=Math.sin(mara.stride*2)*.028*Math.min(1,mara.velocity.length()/3.4);
+    firstPersonPosition.set(mara.root.position.x,mara.root.position.y+1.68+bob,mara.root.position.z);
+  }
+  const yaw=input.yaw,reach=12;
+  firstPersonTarget.set(firstPersonPosition.x-Math.sin(yaw)*reach,firstPersonPosition.y-Math.sin(input.pitch)*reach,firstPersonPosition.z-Math.cos(yaw)*reach);
+}
 // Fixed-step simulation core: the world advances in exact 1/60 s ticks and the
 // renderer interpolates every moving body between the last two ticks, so motion
 // stays smooth and deterministic regardless of frame rate.
@@ -93,10 +123,12 @@ function begin(load) {
     vehicles.cars.forEach((car,i)=>{car.root.position.copy(initialCars[i].position);car.heading=initialCars[i].heading;car.root.rotation.set(0,car.heading,0);car.speed=0;car.damage=0;car.owned=false;});
   }
   mara.root.visible=!activeCar;input.yaw=activeCar?.heading||0;input.pitch=.16;cameraReady=false;
+  el('view-toggle').textContent=state.cameraView==='first'?'VIEW · FIRST-PERSON':'VIEW · CHASE';
   resume();hud.toast(load?'Welcome back to Saltgilt.':'Mara Vale · Pearlwake Boulevard. Your afternoon starts here.');
 }
 function saveGame(){const ok=writeSave(state,mara,vehicles,activeCar);hud.toast(ok?'Game saved on this browser.':'Storage unavailable. Your game could not be saved.');return ok;}
 el('new').onclick=()=>begin(false);el('continue').onclick=()=>begin(true);el('resume').onclick=resume;
+el('view-toggle').onclick=toggleView;
 el('save').onclick=()=>{const ok=saveGame();el('intro').textContent=ok?'Game saved on this browser.':'Storage unavailable. Please keep this page open.';};
 el('controls').onclick=()=>el('controls-panel').classList.toggle('hidden');
 addEventListener('pagehide',()=>{if(mode!=='start')writeSave(state,mara,vehicles,activeCar);});
@@ -160,8 +192,19 @@ function updateCamera(dt,focus) {
   }else{cameraSpringPosition.copy(desiredCamera);cameraSpringVelocity.set(0,0,0);graphics.camera.position.copy(desiredCamera);}
   shake*=Math.exp(-dt*7);
   graphics.camera.position.x+=Math.sin(elapsed*83)*shake*.08;graphics.camera.position.y+=Math.sin(elapsed*63)*shake*.05;
+  // Blend toward the first-person pose when the first-person view is active; the spring
+  // keeps following the chase pose underneath so toggling back is equally smooth.
+  viewBlend=T.MathUtils.damp(viewBlend,state.cameraView==='first'?1:0,5,dt);
+  if(viewBlend>.995)viewBlend=1;else if(viewBlend<.005)viewBlend=0;
+  if(viewBlend>0){
+    firstPersonPose();
+    const blend=viewBlend*viewBlend*(3-2*viewBlend);
+    graphics.camera.position.lerp(firstPersonPosition,blend);
+    cameraTarget.lerp(firstPersonTarget,blend);
+  }
   graphics.camera.lookAt(cameraTarget);
-  graphics.camera.fov=T.MathUtils.damp(graphics.camera.fov,59+speed*.34,3,dt);graphics.camera.updateProjectionMatrix();
+  const speedTarget=state.cameraView==='first'&&viewBlend>.5?64+speed*.18:59+speed*.34;
+  graphics.camera.fov=T.MathUtils.damp(graphics.camera.fov,speedTarget,3,dt);graphics.camera.updateProjectionMatrix();
 }
 
 function updateBodyVisual(dt){
@@ -185,6 +228,8 @@ function animate(now) {
   if(mode!==lastMode){accumulator=0;if(mode==='play')snapInterpolation();lastMode=mode;}
   if(mode==='play'){
     if(input.consume('F5'))saveGame();
+    if(input.consume('KeyV'))toggleView();
+    refreshViewVisibility();
     if(!testManual){
       accumulator=Math.min(accumulator+dt,FIXED_STEP*MAX_STEPS_PER_FRAME);
       let steps=0;while(accumulator>=FIXED_STEP&&steps<MAX_STEPS_PER_FRAME){stepSimulation();accumulator-=FIXED_STEP;steps++;}
@@ -220,9 +265,9 @@ Object.defineProperty(window,'velvet',{value:{
     mode,position:(activeCar?activeCar.root.position:mara.root.position).toArray(),
     onFoot:mara.root.visible,car:activeCar?.id||null,speed:activeCar?.speed||0,damage:activeCar?.damage||0,steer:activeCar?.steer||0,
     heading:activeCar?.heading??mara.root.rotation.y,grounded:mara.grounded,minutes:state.minutes,money:state.money,health:state.health,armor:state.armor,
-    ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),models:vehicles.cars.map(c=>c.model.name),
+    ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),models:vehicles.cars.map(c=>c.model.name),cameraView:state.cameraView,viewBlend,
     frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,shaderPrograms:graphics.renderer.info.programs.length,seed:world.seed,
-    wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,
+    wheelRotation:activeCar?.wheels[0].rotation.x||0,steeringWheelAngle:activeCar?.steeringWheel.rotation.z||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,
     windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,cameraSpringYaw,bodyRoll:activeCar?.root.rotation.z||0,bodyPitch:activeCar?.root.rotation.x||0,save:readSave(),
     rainCount:rain.count,lanternCount:lanterns.count,postfx:postfx.info(),
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
