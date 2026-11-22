@@ -4,10 +4,10 @@ import { seededRandom, standard,surfaceMaterial } from './render.js';
 
 export const avenues = [-240,-160,-80,0,80,160,240];
 export function districtAt(x,z) {
-  if (z > 110) return 'Coral Boulevard';
-  if (x > 100) return 'Tideworks Marina';
-  if (x < -100) return 'Palmera Gardens';
-  return 'Aureate Downtown';
+  if (z > 110) return 'Pearlwake Boulevard';
+  if (x > 100) return 'Lanternfish Marina';
+  if (x < -100) return 'Sunwick Hills';
+  return 'Prism Heights';
 }
 
 export function createCity(scene, mat) {
@@ -120,7 +120,7 @@ export function createCity(scene, mat) {
     const suburb=ix<2&&iz<4;
     const dock=ix>=4&&iz<3;
     if(dock) {
-      building(cx,cz,40,25,8,mat.teal,2);sign('TIDEWORKS / FREIGHT',cx,5,cz+12.8,24);
+      building(cx,cz,40,25,8,mat.teal,2);sign('RUSTCRANE / FREIGHT',cx,5,cz+12.8,24);
       for(let c=0;c<5;c++)for(let row=0;row<2;row++) {
         const mx=cx-20+c*9,mz=cz-21+row*8;
         box(mx,1.7,mz,8,3.2,5.5,c%2?mat.pink:mat.steel);solid(mx,mz,8,5.5,3.2);
@@ -213,7 +213,7 @@ export function createCity(scene, mat) {
     }
   }
   sign('SALTGILT',-17,10,132,20,'#f3bc98',Math.PI/2);
-  sign('CORAL BOULEVARD',15,6.5,180,13,'#f9d69e',-Math.PI/2);
+  sign('PEARLWAKE BOULEVARD',15,6.5,180,13,'#f9d69e',-Math.PI/2);
   // Distant headlands make the sea read as a bay.
   for(let i=0;i<16;i++)bake(new T.ConeGeometry(70+random()*65,50+random()*95,9),standard('#73968b'),-650+i*110,8,-620-random()*100);
   for(const batch of batches.values()) {

@@ -56,8 +56,19 @@ The unchanged dossier library has SHA-256 `dc67187521b24025ff952f8c231485a6eb92d
 | File | Content | Size |
 | --- | --- | --- |
 | `screenshots/1-start-menu.jpg` | Title, New Game / Continue / Controls, and the real city panorama | 102,462 bytes |
-| `screenshots/2-on-foot.jpg` | Mara beside a parked car on Coral Boulevard, with HUD, interaction prompt, and minimap | 126,096 bytes |
+| `screenshots/2-on-foot.jpg` | Mara beside a parked car on Pearlwake Boulevard, with HUD, interaction prompt, and minimap | 126,096 bytes |
 | `screenshots/3-driving.jpg` | The Stiletto moving along the boulevard, with speed, condition, HUD, and minimap | 133,634 bytes |
+
+## District HUD verification (v3 names)
+
+| File | Teleport (`__vhTest.setPosition`) | HUD district text | Size |
+| --- | --- | --- | --- |
+| `screenshots/district-pearlwake.jpg` | (8, 150) | Pearlwake Boulevard | 125,960 bytes |
+| `screenshots/district-lanternfish.jpg` | (150, 0) | Lanternfish Marina | 94,493 bytes |
+| `screenshots/district-sunwick.jpg` | (−150, 0) | Sunwick Hills | 102,292 bytes |
+| `screenshots/district-prism.jpg` | (0, 0) | Prism Heights | 102,252 bytes |
+
+All four captures are 1280×720, taken by `verify-districts-playwright.cjs` (Chromium, `xvfb-run`). No v1 district name (the four old zone labels replaced by the names above) appears in any page text. Gates: 0 console errors, 0 page errors, 0 non-file requests.
 
 ## Known limits
 

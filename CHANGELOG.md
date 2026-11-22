@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-22 — District rename: v1 names → v3 names
+
+- Replaced all four v1 district names with v3 names in `districtAt` (`game/src/world.js`): z > 110 → **Pearlwake Boulevard**, x > 100 → **Lanternfish Marina**, x < −100 → **Sunwick Hills**, default → **Prism Heights**. No new zones added.
+- Signage and copy updates: docks sign (old TIDE-name) → **RUSTCRANE / FREIGHT**, road sign (old CORAL-name) → **PEARLWAKE BOULEVARD** (`game/src/world.js`), New Game toast → **"Mara Vale · Pearlwake Boulevard. Your afternoon starts here."** (`game/src/main.js`), HUD default district → **Pearlwake Boulevard** (`game/index.html`), README district list, and `shots.json`/`QA.md` 2-on-foot descriptions. Store names (`CORAL SOCIAL`, `BAYLINE COFFEE`, etc.) unchanged. Bundle rebuilt with esbuild.
+
+### Verification
+
+- `grep -ri` for the four v1 district labels (each matched case-insensitively as a two-word phrase or single label) (excluding `node_modules/` and `.git/`): **0 matches**, including the rebuilt bundle.
+- `node --test tests/run.mjs`: **6/6 passed**. `npx -y -p typescript tsc --noEmit`: **0 errors**. `node main.ts`: **exit 0**.
+- Persistent Playwright launcher (`verify-districts-playwright.cjs`, Chromium via `xvfb-run`, 1280×720, DOM click on `#new`): teleported with `window.__vhTest.setPosition` to (8,150), (150,0), (−150,0), (0,0). HUD read **Pearlwake Boulevard**, **Lanternfish Marina**, **Sunwick Hills**, **Prism Heights** respectively; no v1 district names anywhere in page text. Evidence: `screenshots/district-pearlwake.jpg`, `district-lanternfish.jpg`, `district-sunwick.jpg`, `district-prism.jpg` (all 1280×720). Gates: **0 console errors, 0 page errors, 0 non-file requests**.
+
 ## 2026-11-22 — Rename finish: Solmar → Saltgilt
 
 - Completed the text rename across the remaining project files: **PLAN.md, README.md, game/bundle.min.js, game/index.html, game/src/hud.js, game/src/main.js, game/src/world.js, shots.json** (8 files). The rename only replaces strings; game logic is unchanged. `screenshots/bugb-live.jpg` was regenerated as part of the same change (**1280×720, 132,051 bytes**).
