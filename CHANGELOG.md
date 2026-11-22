@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-22 — Milestone 3b-1: fixed-step simulation + spring camera
+
+- **Fixed-step core** (`game/src/main.js`): simulation advances in exact 1/60 s ticks via an accumulator loop (`MAX_FRAME_DELTA` 0.05, max 4 steps/frame); all moving bodies keep prev/cur position+yaw buffers and are renderer-interpolated, so motion is smooth and deterministic at any frame rate. Teleports re-anchor interpolation via `snapInterpolation()`.
+- **Spring chase camera**: critically damped spring (stiffness 81, damping 18) on camera position and yaw (`cameraSpringYaw`) replaces the frame-rate-dependent lerp; occlusion pull-in and first-frame anchor preserved.
+- **Vehicle body roll/pitch**: `updateBodyVisual()` damps roll (≤0.055 rad, steer×speed) and pitch (≤0.035 rad, acceleration).
+- **Test-only hooks**: `window.__vhTest.setManual()` / `__vhTest.step(count)` run the exact production step path deterministically; the rAF loop skips sim/camera/body updates in manual mode so wall frames cannot contaminate stepped sequences.
+- Verification: bundle rebuilt (esbuild iife minified); tests **6/6**, `tsc --noEmit` **0 errors**, `node main.ts` **exit 0** (dossier 749,651 B), Playwright golden path **PASS** (walk + enter car + drive, **0 console / 0 page errors / 0 non-file requests**), determinism **2× identical to 0 delta** (241 fixed steps), `maxCameraStep` **0.603** < 1, `maxCameraYawStep` **0.0201** rad < 0.35, body roll/pitch in range. Software render **0.39 FPS** (SwiftShader, not a GPU claim). Screenshot `m3b1-drive.jpg` retaken. Full numbers in QA.md (Milestone 3b-1 section).
+
 ## 2026-11-22 — Milestone 3a: signature blue-hour look
 
 - Default time is now **18:30 blue hour** (New Game, title scene, HUD clock): navy `#0e1738` / violet `#232a52` sky gradient with a warm horizon ember, bluish hemisphere ambient (sky `#8fa3e8`, ground `#3b3f66`), low amber sun ramp (`game/src/render.js` `updateDay`, `game/src/main.js`, `game/index.html`).

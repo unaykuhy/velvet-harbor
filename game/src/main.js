@@ -28,7 +28,45 @@ let mode='start',activeCar=null,shake=0,elapsed=0,lastSave=0,lastTime=performanc
 let cameraReady=false,night=0;
 const lastShadowPosition=new T.Vector3(999,999,999);let lastShadowMinute=-1;
 const input=createInput(el('view'),pause);
-const cameraTarget=new T.Vector3(),desiredCamera=new T.Vector3();
+const cameraTarget=new T.Vector3(),desiredCamera=new T.Vector3(),cameraSpringPosition=new T.Vector3(),cameraSpringVelocity=new T.Vector3();
+let cameraSpringYaw=0,cameraSpringYawVelocity=0,cameraSpringChase=false,lastMode=mode,testManual=false;
+let bodyCar=null,bodyLastSpeed=0,bodyAcceleration=0;
+// Fixed-step simulation core: the world advances in exact 1/60 s ticks and the
+// renderer interpolates every moving body between the last two ticks, so motion
+// stays smooth and deterministic regardless of frame rate.
+const FIXED_STEP=1/60,MAX_FRAME_DELTA=.05,MAX_STEPS_PER_FRAME=4;
+let accumulator=0;
+const simEntities=new Set();
+function collectSimEntities(){simEntities.clear();simEntities.add(mara);for(const car of vehicles.cars)simEntities.add(car);for(const car of police.cars)simEntities.add(car);for(const person of pedestrians.people)simEntities.add(person);if(activeCar)simEntities.add(activeCar);}
+function trackEntity(entity){
+  if(!entity._prevPos){entity._prevPos=entity.root.position.clone();entity._curPos=entity.root.position.clone();entity._prevYaw=entity.root.rotation.y;entity._curYaw=entity.root.rotation.y;}
+}
+function simStepBegin(entity){trackEntity(entity);entity.root.position.copy(entity._curPos);entity.root.rotation.y=entity._curYaw;}
+function simStepEnd(entity){trackEntity(entity);entity._prevPos.copy(entity._curPos);entity._curPos.copy(entity.root.position);entity._prevYaw=entity._curYaw;entity._curYaw=entity.root.rotation.y;}
+function applyInterpolation(entity,alpha){
+  trackEntity(entity);
+  entity.root.position.lerpVectors(entity._prevPos,entity._curPos,alpha);
+  entity.root.rotation.y=entity._prevYaw+Math.atan2(Math.sin(entity._curYaw-entity._prevYaw),Math.cos(entity._curYaw-entity._prevYaw))*alpha;
+}
+// Re-anchor the interpolation buffers after a teleport (menu start, car doors, test hooks).
+function snapInterpolation(){collectSimEntities();for(const entity of simEntities){trackEntity(entity);entity._prevPos.copy(entity.root.position);entity._curPos.copy(entity.root.position);entity._prevYaw=entity.root.rotation.y;entity._curYaw=entity.root.rotation.y;}}
+function stepSimulation(){
+  collectSimEntities();
+  for(const entity of simEntities)simStepBegin(entity);
+  state.minutes=(state.minutes+FIXED_STEP*2)%1440;
+  if(input.consume('KeyE')){interact();snapInterpolation();}
+  if(activeCar){
+    const previous=activeCar.root.position.clone();
+    // Substeps keep high-speed movement from tunneling through narrow props.
+    const count=Math.ceil(FIXED_STEP/.012);for(let i=0;i<count;i++)vehicles.drive(activeCar,FIXED_STEP/count,input,world,(force,other)=>{shake=Math.min(3,force/8);audio.impact(force);if(force>5)hud.toast('Hard impact · vehicle damaged');if(other)police.offence('collision',activeCar.root.position);});
+    if(traffic.checkRedCrossing(activeCar,previous))police.offence('red light',activeCar.root.position,true);
+  }else{const walkingSteps=Math.ceil(FIXED_STEP/.02);for(let i=0;i<walkingSteps;i++)mara.update(FIXED_STEP/walkingSteps,input,input.yaw,world);}
+  const focus=activeCar?activeCar.root.position:mara.root.position,playerHeading=activeCar?.heading??mara.root.rotation.y;
+  traffic.update(FIXED_STEP,activeCar,focus,pedestrians.people);
+  police.update(FIXED_STEP,focus,activeCar,FIXED_STEP,playerHeading);
+  pedestrians.update(FIXED_STEP,activeCar,focus,[...vehicles.cars,...police.cars]);
+  for(const entity of simEntities)simStepEnd(entity);
+}
 const initialCars=vehicles.cars.map(car=>({position:car.root.position.clone(),heading:car.heading}));
 el('loading').remove();
 el('continue').disabled=!readSave();
@@ -101,31 +139,58 @@ function updateCamera(dt,focus) {
   // Pull the camera in along its ray if an architectural surface would hide the protagonist.
   const direction=desiredCamera.clone().sub(cameraTarget);
   for(let t=.15;t<=1;t+=.08){const sample=cameraTarget.clone().addScaledVector(direction,t);if(world.blocked(sample.x,sample.z,.2,sample.y)){desiredCamera.copy(cameraTarget).addScaledVector(direction,Math.max(.12,t-.1));break;}}
-  if(!cameraReady){graphics.camera.position.copy(desiredCamera);cameraReady=true;}
-  else graphics.camera.position.lerp(desiredCamera,1-Math.exp(-dt*6));
+  const offsetX=desiredCamera.x-focus.x,offsetZ=desiredCamera.z-focus.z,radius=Math.hypot(offsetX,offsetZ);
+  const chase=radius>.75,desiredYaw=Math.atan2(offsetX,offsetZ),step=Math.min(dt,MAX_FRAME_DELTA),stiffness=81,damping=18;
+  if(chase&&cameraReady&&cameraSpringChase){
+    const yawError=Math.atan2(Math.sin(desiredYaw-cameraSpringYaw),Math.cos(desiredYaw-cameraSpringYaw));
+    cameraSpringYawVelocity+=(yawError*stiffness-damping*cameraSpringYawVelocity)*step;cameraSpringYaw+=cameraSpringYawVelocity*step;
+    desiredCamera.x=focus.x+Math.sin(cameraSpringYaw)*radius;desiredCamera.z=focus.z+Math.cos(cameraSpringYaw)*radius;
+  }
+  if(!cameraReady||chase!==cameraSpringChase){
+    cameraSpringChase=chase;cameraSpringYaw=desiredYaw;cameraSpringYawVelocity=0;
+    cameraSpringPosition.copy(desiredCamera);cameraSpringVelocity.set(0,0,0);graphics.camera.position.copy(desiredCamera);cameraReady=true;
+  }else if(chase){
+    cameraSpringVelocity.x+=((desiredCamera.x-cameraSpringPosition.x)*stiffness-damping*cameraSpringVelocity.x)*step;
+    cameraSpringVelocity.y+=((desiredCamera.y-cameraSpringPosition.y)*stiffness-damping*cameraSpringVelocity.y)*step;
+    cameraSpringVelocity.z+=((desiredCamera.z-cameraSpringPosition.z)*stiffness-damping*cameraSpringVelocity.z)*step;
+    cameraSpringPosition.addScaledVector(cameraSpringVelocity,step);graphics.camera.position.copy(cameraSpringPosition);
+  }else{cameraSpringPosition.copy(desiredCamera);cameraSpringVelocity.set(0,0,0);graphics.camera.position.copy(desiredCamera);}
   shake*=Math.exp(-dt*7);
   graphics.camera.position.x+=Math.sin(elapsed*83)*shake*.08;graphics.camera.position.y+=Math.sin(elapsed*63)*shake*.05;
   graphics.camera.lookAt(cameraTarget);
   graphics.camera.fov=T.MathUtils.damp(graphics.camera.fov,59+speed*.34,3,dt);graphics.camera.updateProjectionMatrix();
 }
 
+function updateBodyVisual(dt){
+  if(bodyCar!==activeCar){
+    if(bodyCar){bodyCar.root.rotation.x=0;bodyCar.root.rotation.z=0;}
+    bodyCar=activeCar;bodyLastSpeed=activeCar?.speed||0;bodyAcceleration=0;
+    if(bodyCar){bodyCar.root.rotation.x=0;bodyCar.root.rotation.z=0;}
+  }
+  if(!activeCar)return;
+  if(activeCar.speed!==bodyLastSpeed){bodyAcceleration=(activeCar.speed-bodyLastSpeed)/FIXED_STEP;bodyLastSpeed=activeCar.speed;}
+  const speedFactor=Math.min(1,Math.abs(activeCar.speed)/20);
+  const targetRoll=T.MathUtils.clamp(-activeCar.steer*speedFactor*.055,-.055,.055);
+  const targetPitch=T.MathUtils.clamp(-bodyAcceleration*.0025,-.035,.035);
+  activeCar.root.rotation.z=T.MathUtils.damp(activeCar.root.rotation.z,targetRoll,8,dt);
+  activeCar.root.rotation.x=T.MathUtils.damp(activeCar.root.rotation.x,targetPitch,8,dt);
+}
+
 function animate(now) {
   requestAnimationFrame(animate);
-  const realDelta=(now-lastTime)/1000,dt=Math.min(.2,Math.max(.001,realDelta));lastTime=now;elapsed+=dt;frames++;
+  const realDelta=(now-lastTime)/1000,dt=Math.min(MAX_FRAME_DELTA,Math.max(.001,realDelta));lastTime=now;elapsed+=dt;frames++;
+  if(mode!==lastMode){accumulator=0;if(mode==='play')snapInterpolation();lastMode=mode;}
   if(mode==='play'){
-    state.minutes=(state.minutes+dt*2)%1440;
-    if(input.consume('KeyE'))interact();
     if(input.consume('F5'))saveGame();
-    if(activeCar){
-      const previous=activeCar.root.position.clone();
-      // Substeps keep high-speed movement from tunneling through narrow props.
-      const count=Math.ceil(dt/.012);for(let i=0;i<count;i++)vehicles.drive(activeCar,dt/count,input,world,(force,other)=>{shake=Math.min(3,force/8);audio.impact(force);if(force>5)hud.toast('Hard impact · vehicle damaged');if(other)police.offence('collision',activeCar.root.position);});
-      if(traffic.checkRedCrossing(activeCar,previous))police.offence('red light',activeCar.root.position,true);
-    }else{const walkingSteps=Math.ceil(dt/.02);for(let i=0;i<walkingSteps;i++)mara.update(dt/walkingSteps,input,input.yaw,world);}
-    const focus=activeCar?activeCar.root.position:mara.root.position,playerHeading=activeCar?.heading??mara.root.rotation.y;
-    const steps=Math.ceil(dt/.012);for(let i=0;i<steps;i++){traffic.update(dt/steps,activeCar,focus,pedestrians.people);police.update(dt/steps,focus,activeCar,realDelta/steps,playerHeading);pedestrians.update(dt/steps,activeCar,focus,[...vehicles.cars,...police.cars]);}
-    updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
-    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);
+    if(!testManual){
+      accumulator=Math.min(accumulator+dt,FIXED_STEP*MAX_STEPS_PER_FRAME);
+      let steps=0;while(accumulator>=FIXED_STEP&&steps<MAX_STEPS_PER_FRAME){stepSimulation();accumulator-=FIXED_STEP;steps++;}
+      collectSimEntities();const alpha=accumulator/FIXED_STEP;for(const entity of simEntities)applyInterpolation(entity,alpha);
+    }
+    const focus=activeCar?activeCar.root.position:mara.root.position;
+    if(!testManual){updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
+    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);updateBodyVisual(dt);}
+    else night=graphics.updateDay(state.minutes,focus,materials);
     rain.update(dt,graphics.camera);lanterns.update(elapsed);
     hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
     if(elapsed-lastSave>20){writeSave(state,mara,vehicles,activeCar);lastSave=elapsed;}
@@ -154,7 +219,7 @@ Object.defineProperty(window,'velvet',{value:{
     ownedCars:vehicles.cars.filter(c=>c.owned).map(c=>c.id),models:vehicles.cars.map(c=>c.model.name),
     frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,shaderPrograms:graphics.renderer.info.programs.length,seed:world.seed,
     wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,
-    windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,save:readSave(),
+    windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,cameraSpringYaw,bodyRoll:activeCar?.root.rotation.z||0,bodyPitch:activeCar?.root.rotation.x||0,save:readSave(),
     rainCount:rain.count,lanternCount:lanterns.count,
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
     trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
@@ -168,6 +233,13 @@ function testSnapshot(){
 }
 function refreshTestHUD(){const focus=activeCar?activeCar.root.position:mara.root.position;hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);}
 Object.defineProperty(window,'__vhTest',{value:{
+  setManual(value){testManual=!!value;accumulator=0;snapInterpolation();return testManual;},
+  step(count=1){
+    if(!testManual)throw new Error('Enable manual test mode before stepping');
+    if(!Number.isInteger(count)||count<0||count>600)throw new TypeError('Test steps must be an integer from 0 to 600');
+    for(let i=0;i<count;i++){stepSimulation();updateBodyVisual(FIXED_STEP);const focus=activeCar?activeCar.root.position:mara.root.position;updateCamera(FIXED_STEP,focus);}
+    collectSimEntities();for(const entity of simEntities)applyInterpolation(entity,1);refreshTestHUD();return window.velvet.inspect();
+  },
   forceWanted(level){
     police.forceWanted(level);const focus=activeCar?activeCar.root.position:mara.root.position;police.update(0,focus,activeCar,0);refreshTestHUD();return testSnapshot();
   },
@@ -178,7 +250,7 @@ Object.defineProperty(window,'__vhTest',{value:{
   },
   setPosition(x,z){
     if(!Number.isFinite(x)||!Number.isFinite(z))throw new TypeError('Test position must be finite');
-    const root=activeCar?activeCar.root:mara.root;root.position.set(x,root.position.y,z);cameraReady=false;police.update(0,root.position,activeCar,0);refreshTestHUD();return testSnapshot();
+    const root=activeCar?activeCar.root:mara.root;root.position.set(x,root.position.y,z);snapInterpolation();cameraReady=false;police.update(0,root.position,activeCar,0);refreshTestHUD();return testSnapshot();
   },
   spawnPoliceAhead(forward=4,side=0){
     if(!Number.isFinite(forward)||!Number.isFinite(side))throw new TypeError('Test police offset must be finite');

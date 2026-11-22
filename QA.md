@@ -93,6 +93,29 @@ Verification (all numbers from this session's runs):
 - Screenshots (1280×720, in `~/workspace/makefun/velvet-harbor-preview/`, NOT in `screenshots/`): `m3a-street.jpg` (102,226 bytes, street-level blue hour with rain and wet-asphalt sheen, HUD + clock visible) and `m3a-skyline.jpg` (97,746 bytes, skyline over the bay with sky lanterns).
 - **Post-review fix (Medium finding)** — asphalt base roughness corrected from `2.6` (outside the standard `[0,1]` range) to `1.0`; the dark `roughnessMap` already provides 0–1 variation. Removed the redundant `roughnessMap.needsUpdate=true` (texture never changes after creation). Bundle rebuilt; re-verified: tests **6/6**, `tsc --noEmit` **0 errors**, `node main.ts` **exit 0**, Playwright re-run **PASS** (18:30 start, rain 640, lanterns 20, 0 console / 0 page errors, 0 non-file requests); screenshots regenerated.
 
+## Milestone 3b-1 — fixed-step simulation, interpolation, spring camera (2026-11-22)
+
+What changed (`game/src/main.js` only; no police/vehicle/mission/save/vendor changes):
+
+- **Fixed-step core** — the world advances in exact 1/60 s ticks (`FIXED_STEP=1/60`, `MAX_FRAME_DELTA=0.05`, `MAX_STEPS_PER_FRAME=4`) via an accumulator loop; every moving body (player, traffic, police, pedestrians, active car) keeps `_prev/_cur` position+yaw buffers and is interpolated by the renderer at `alpha=accumulator/FIXED_STEP`. Teleports (menu start, car doors, `setPosition`) re-anchor via `snapInterpolation()`.
+- **Spring camera** — chase camera driven by a critically damped spring (stiffness 81, damping 18, `2√k = 18`) on both position and yaw (`cameraSpringYaw`), replacing the per-frame lerp; occlusion pull-in and first-frame anchoring preserved.
+- **Body roll/pitch** — `updateBodyVisual()` damps `root.rotation.z` (roll, ≤0.055 rad from steer×speed) and `root.rotation.x` (pitch, ≤0.035 rad from acceleration).
+- **Test-only hooks** — `window.__vhTest.setManual(bool)` and `__vhTest.step(count)` (0–600 integer steps, throws otherwise) drive the exact same `stepSimulation()`/`updateBodyVisual()`/`updateCamera(FIXED_STEP)` path deterministically; in manual mode the rAF loop skips sim, interpolation, camera, and body updates so wall-time frames cannot contaminate a stepped sequence.
+- **Verification harness fix** — the fixed wall-time drive waits in `velvet-harbor-launcher/verify-m3b1-smooth-playwright.cjs` were replaced with condition-based waits (drive >2 m, turn >0.5 rad, 300 s timeouts) because software rendering runs at ~0.4–1.8 FPS; the assertions are unchanged.
+
+Verification (all numbers from this session's runs):
+
+- Bundle rebuilt with esbuild (`--bundle --format=iife --minify`, 572,681 bytes); `setManual` present in the minified bundle.
+- `node --test tests/run.mjs`: **6/6 pass** (rerun after the final main.js edit).
+- `npx -y -p typescript tsc --noEmit`: **0 errors**.
+- `node main.ts`: **exit 0 in 0.27 s**; dossier written (`/output/dossier.json`, 749,651 bytes).
+- Playwright (`verify-m3b1-smooth-playwright.cjs`, Chromium 131.0.6778.33 / cached Playwright 1.49.1, `xvfb-run`, file://, 1280×720, DOM `#new` click): **PASS**.
+  - Golden path: walked **0.109 m**, entered `bay-0`, drove **16.05 m**, final speed **19.72 m/s**, 284 draw calls; **0 console errors, 0 page errors, 0 non-file requests**. Software FPS **0.39** (SwiftShader/llvmpipe — software measurement, not a GPU claim).
+  - Determinism (2 independent runs, 241 fixed steps each): final positions **identical to 0 delta** (`positionDelta 0`, `headingDelta 0`, `speedDelta 0`, `minutesDelta 0`) — end state `[-33.65920694917255, 0.02, 72.88352163083903]`, heading 1.8446650808631742, speed 47.
+  - Camera/body: `maxCameraStep` **0.6034** (< 1), `maxCameraYawStep` **0.02014** rad (< 0.35), all 209 camera samples finite; `maxBodyRoll` **0.02517** rad, `maxBodyPitch` **0.00437** rad, both inside the required ranges.
+- Screenshot `~/workspace/makefun/velvet-harbor-preview/m3b1-drive.jpg` retaken by the golden path (1280×720, 151,877 bytes) mid-turn while driving at 19.72 m/s, replacing the stale pre-rebuild capture.
+- **Issue found and fixed during verification**: in test-manual mode the rAF loop still called `updateCamera(dt)`/`updateBodyVisual(dt)` with wall-clock dt between manual steps, which could inject a 2.84-unit camera jump into a stepped sequence; guarded behind `!testManual` in `animate()`. Gameplay path untouched.
+
 ## Known limits
 
 Software rendering is too slow for comfortable play. The measured performance gate is not passed, and hardware performance must be assessed before accepting the build. The simulation limits long frame steps to preserve collision stability, so play and the clock slow down under very low frame rates. The software renderer uses reduced internal resolution and a smaller shadow map; the UI and screenshots retain the requested viewport dimensions.
