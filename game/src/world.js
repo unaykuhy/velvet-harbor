@@ -212,7 +212,7 @@ export function createCity(scene, mat) {
       bake(new T.SphereGeometry(.9,10,7),mat.leaf,x,1.25,z);
     }
   }
-  sign('SOLMAR BAY',-17,10,132,20,'#f3bc98',Math.PI/2);
+  sign('SALTGILT',-17,10,132,20,'#f3bc98',Math.PI/2);
   sign('CORAL BOULEVARD',15,6.5,180,13,'#f9d69e',-Math.PI/2);
   // Distant headlands make the sea read as a bay.
   for(let i=0;i<16;i++)bake(new T.ConeGeometry(70+random()*65,50+random()*95,9),standard('#73968b'),-650+i*110,8,-620-random()*100);

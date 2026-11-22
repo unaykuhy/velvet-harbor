@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/gta6-01/unaykuhy/velvet-harbor/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/unaykuhy/velvet-harbor/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-Velvet Harbor is an offline, open-world game set in Solmar Bay, where former dockworker Mara Vale explores Coral Boulevard, Aureate Downtown, Tideworks Marina, and Palmera Gardens on foot or behind the wheel of five distinct cars. This Phase 1 free-roam foundation features a procedural city, a day-night cycle, driving, and local saves; story missions, traffic, pedestrians, police, and combat are planned for later phases.
+Velvet Harbor is an offline, open-world game set in Saltgilt, where former dockworker Mara Vale explores Coral Boulevard, Aureate Downtown, Tideworks Marina, and Palmera Gardens on foot or behind the wheel of five distinct cars. This Phase 1 free-roam foundation features a procedural city, a day-night cycle, driving, and local saves; story missions, traffic, pedestrians, police, and combat are planned for later phases.
 
 ## Run it
 

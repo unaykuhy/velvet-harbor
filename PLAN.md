@@ -4,7 +4,7 @@
 
 0. **Plan and gates:** record this build order, preserve offline/file:// delivery, and keep every gate mandatory.
 1. **Phase-2 bug gates:** prove wanted stars decay one per 20 seconds only while real line of sight stays broken; emit a wanted-change/heli-leave event. Prove a cruiser 4 m ahead cannot pin the player, enforce the 15 m forward exclusion, preserve 4 m roadblock gaps, and clear a blocking unit within 3 seconds.
-2. **Rename:** use Saltgilt Bay, Prism Heights, Pearlwake Boulevard, Lanternfish Marina, Rustcrane Docks, Opaline Row, Sunwick Hills, Skyfern Airfield, Halberd Point, and Saffron Pier Market everywhere; retain Velvet Harbor, Mara Vale, and the five vehicle names.
+2. **Rename:** use Saltgilt, Prism Heights, Pearlwake Boulevard, Lanternfish Marina, Rustcrane Docks, Opaline Row, Sunwick Hills, Skyfern Airfield, Halberd Point, and Saffron Pier Market everywhere; retain Velvet Harbor, Mara Vale, and the five vehicle names.
 3. **Signature look and smoothness:** blue-hour Art Deco, neon, wet streets, light rain, lanterns, reflective physical materials, fixed-step/interpolated simulation, damped camera and animation, pooling and shader precompilation.
 4. **Life of the city:** seagulls, pigeons, a high airliner, ferries, sailboats, and the horizon cargo ship.
 5. **Pursuit:** Sky Patrol at five stars, dispatch subtitles, wanted news, adaptive music, and passable roadblocks; connect helicopter departure to the milestone-1 wanted event.

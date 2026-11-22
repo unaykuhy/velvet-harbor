@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-22 — Rename finish: Solmar → Saltgilt
+
+- Completed the text rename across the remaining project files: **PLAN.md, README.md, game/bundle.min.js, game/index.html, game/src/hud.js, game/src/main.js, game/src/world.js, shots.json** (8 files). The rename only replaces strings; game logic is unchanged. `screenshots/bugb-live.jpg` was regenerated as part of the same change (**1280×720, 132,051 bytes**).
+
+### Verification
+
+- `grep -ri "solmar"` (excluding `node_modules/` and `.git/`): **0 matches**.
+- `node --test tests/run.mjs`: **6/6 passed** (all Bug A and Bug B regressions).
+- `npx -y -p typescript tsc --noEmit`: **0 errors**. `node main.ts`: **exit 0**.
+- Playwright (coordinator run, `velvet-harbor-launcher/verify-bugb-playwright.cjs`, post-rename bundle): **5 of 6 criteria passed** — maxBlockFor **0 s**, cruiser pushed laterally **2.24 m**, **0 console errors**, **0 page errors**, **0 non-file requests**, HUD contains **"SALTGILT"** and no **"SOLMAR"**. The one criterion not met in that run was **advance >1 m within 2 s wall-clock**: measured **0.992 m**, because the renderer produced only **2 frames in 5.58 s (0.358 FPS)** on the resource-limited VM. The identical scenario passed pre-rename on logically identical code (commit 61c207c: 1 m in 1.275 s, 13.58 m in 3.58 s, maxBlockFor 0, lateral 2.24 m, 2.79 FPS, 0 errors). Since the rename is string-only, the verified behavior is identical; the wall-clock 1 m/2 s bar is sensitive to VM renderer speed and will be rechecked deterministically in milestone 3 (fixed-step 60 Hz). No unmeasured wall-clock pass is claimed.
+
 ## 2026-11-22 — Bug A: wanted-level decay
 
 - Wanted decay now requires a real line-of-sight break. Police cruisers and visible officers use distance-limited visibility checks with building occlusion; elapsed time alone does not reduce wanted level.

@@ -7,7 +7,7 @@ export function createHUD() {
     el('pursuit').textContent=wanted?(searching?'OUT OF SIGHT · KEEP MOVING':'POLICE PURSUIT · BREAK LINE OF SIGHT'):'TRAFFIC SIGNALS ACTIVE · DRIVE WITH CARE';
     el('district').textContent=districtAt(position.x,position.z);
     const hour=Math.floor(state.minutes/60)%24,min=Math.floor(state.minutes%60);
-    el('clock').textContent=`SOLMAR BAY · ${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+    el('clock').textContent=`SALTGILT · ${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
     el('money').textContent=`$ ${state.money.toLocaleString('en-US')}`;
     el('healthbar').style.width=state.health+'%';el('armorbar').style.width=state.armor+'%';
     el('vitals').textContent=`HEALTH ${Math.round(state.health)}   ARMOR ${Math.round(state.armor)}`;
