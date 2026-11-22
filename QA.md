@@ -116,6 +116,24 @@ Verification (all numbers from this session's runs):
 - Screenshot `~/workspace/makefun/velvet-harbor-preview/m3b1-drive.jpg` retaken by the golden path (1280×720, 151,877 bytes) mid-turn while driving at 19.72 m/s, replacing the stale pre-rebuild capture.
 - **Issue found and fixed during verification**: in test-manual mode the rAF loop still called `updateCamera(dt)`/`updateBodyVisual(dt)` with wall-clock dt between manual steps, which could inject a 2.84-unit camera jump into a stepped sequence; guarded behind `!testManual` in `animate()`. Gameplay path untouched.
 
+## Milestone 3b-2 — post-processing pipeline (2026-11-22)
+
+What changed (look only; no gameplay, police, vehicle, mission, or save logic touched):
+
+- **New `game/src/postfx.js` (136 lines)** — `EffectComposer` chain: `RenderPass` → `UnrealBloomPass` (threshold 0.85, strength 0.65, radius 0.45; half resolution on software renderers) → `ShaderPass` `GradeShader` (contrast 1.09 around the 0.18 linear pivot, navy shadow tint, warm highlight tint, vignette 0.55) → `OutputPass` (ACESFilmic tone mapping + sRGB). The MSAA render target uses `HalfFloatType` with `samples: 4` on WebGL2. `renderer.info.autoReset` is disabled and reset once per frame so stats accumulate across composer passes.
+- **PMREM environment without external HDR files** — `buildEnvironment()` renders two coded gradient scenes (night: navy sky `#0e1738` / violet horizon `#232a52` / ember `#c76a4e` / dark water; day variant) plus 26 faint emissive city-glow blocks through `PMREMGenerator`, giving wet asphalt, car paint and glass living colored reflections; `scene.environment` swaps night/day in `updateDay` (`game/src/render.js`).
+- **Look fixes in the same pass** — asphalt base darkened `#31414a` → `#222c34` (pale-road fix), lantern emissive 3.6 → 1.6 (white-disc fix), neon trim raised for readability (`game/src/render.js`, `game/src/weather.js`, `game/src/world.js`). `game/src/main.js` wires the composer; `game/bundle.min.js` rebuilt.
+
+Verification (all numbers from this session's runs):
+
+- `node --test tests/run.mjs`: **6/6 pass, 0 fail**.
+- `npx -y -p typescript tsc --noEmit`: **0 errors** (`TSC_OK_0_ERRORS`).
+- `node main.ts`: **exit 0**, ~0.3 s; dossier regenerated in a fresh isolated output dir, **756,299 bytes**.
+- Playwright (`velvet-harbor-launcher/verify-m3b2-postfx.cjs`, Chromium 1148, file://, 1280×720, DOM `#new` click): **PASS**. Postfx inspect: **msaaSamples 4, passes 4, bloomThreshold 0.85, bloomStrength 0.65, software true**; lanterns 20; golden path walked **0.081 m** and drove **2.25 m** (final speed 7.98 m/s); **0 console errors, 0 page errors, 0 non-file requests**.
+- FPS: **0.333** (311 draw calls, 237,780 triangles, 24 shader programs) vs pre-change baseline **0.393** — ~15% cost on SwiftShader/llvmpipe software rendering. **Honest limit: this is a software measurement, NOT a GPU or real-laptop claim.**
+- Pixel evidence (canvas sampling of the fresh captures): street road average RGB **(0,1,31)** — dark navy wet asphalt; corner-to-center vignette ratio **0.79** (TL) / **0.54** (skyline); warm glow pixels present (street 603, skyline 230 sampled spots); **clipped white ≥250: street 4, skyline 1** (pre-fix captures measured 392 / 232 — the white lantern discs and blown highlights are gone); sky averages **(52,36,70)** street / **(39,11,69)** skyline (blue-violet, no daylight blowout).
+- Screenshots (1280×720, in `~/workspace/makefun/velvet-harbor-preview/`, NOT in `screenshots/`): `m3b2-street.jpg` (119,867 bytes — street-level blue hour post-grade, dark wet road with neon reflections) and `m3b2-skyline.jpg` (136,644 bytes — skyline over the bay with lanterns and teal water reflections), both re-captured fresh by the verification run.
+
 ## Known limits
 
 Software rendering is too slow for comfortable play. The measured performance gate is not passed, and hardware performance must be assessed before accepting the build. The simulation limits long frame steps to preserve collision stability, so play and the clock slow down under very low frame rates. The software renderer uses reduced internal resolution and a smaller shadow map; the UI and screenshots retain the requested viewport dimensions.

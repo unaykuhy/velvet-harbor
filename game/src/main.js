@@ -12,8 +12,10 @@ import {createTraffic} from './traffic.js';
 import {createPedestrians} from './peds.js';
 import {createPolice} from './police.js';
 import {createRain,createLanterns} from './weather.js';
+import {createPostFX} from './postfx.js';
 
 const graphics=createRenderer(),materials=makeMaterials();
+const postfx=createPostFX(graphics.renderer,graphics.scene,graphics.camera);
 const world=createCity(graphics.scene,materials),vehicles=createVehicles(graphics.scene),mara=createMara(graphics.scene);
 const rain=createRain(graphics.scene),lanterns=createLanterns(graphics.scene);
 const reflectiveMaterials=new Set();graphics.scene.traverse(object=>{if(object.material?.isMeshStandardMaterial)reflectiveMaterials.add(object.material);});
@@ -98,6 +100,7 @@ el('new').onclick=()=>begin(false);el('continue').onclick=()=>begin(true);el('re
 el('save').onclick=()=>{const ok=saveGame();el('intro').textContent=ok?'Game saved on this browser.':'Storage unavailable. Please keep this page open.';};
 el('controls').onclick=()=>el('controls-panel').classList.toggle('hidden');
 addEventListener('pagehide',()=>{if(mode!=='start')writeSave(state,mara,vehicles,activeCar);});
+addEventListener('resize',()=>postfx.setSize(innerWidth,innerHeight));
 
 function interact() {
   if(activeCar){
@@ -200,13 +203,14 @@ function animate(now) {
     graphics.camera.position.set(304+Math.sin(elapsed*.025)*2,30,244);graphics.camera.lookAt(15,14,55);
   }
   audio.update(activeCar?.speed||0,!!activeCar,mode!=='play',police.siren);
-  // Wet asphalt keeps a strong environment sheen after dark so neon and light bars read on the tarmac.
-  reflectiveMaterials.forEach(material=>{material.envMapIntensity=material===materials.asphalt?.45+night*1.05:.035+(1-night)*.65;});
+  // Wet asphalt keeps a controlled environment sheen after dark so neon and light bars read on
+  // the tarmac without washing the pavement out.
+  reflectiveMaterials.forEach(material=>{material.envMapIntensity=material===materials.asphalt?.35+night*.8:.035+(1-night)*.65;});
   const shadowFocus=activeCar?activeCar.root.position:mara.root.position;
   if(shadowFocus.distanceToSquared(lastShadowPosition)>36||Math.abs(state.minutes-lastShadowMinute)>4){
     graphics.renderer.shadowMap.needsUpdate=true;lastShadowPosition.copy(shadowFocus);lastShadowMinute=state.minutes;
   }
-  graphics.renderer.render(graphics.scene,graphics.camera);
+  postfx.render();
 }
 requestAnimationFrame(animate);
 
@@ -220,7 +224,7 @@ Object.defineProperty(window,'velvet',{value:{
     frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,shaderPrograms:graphics.renderer.info.programs.length,seed:world.seed,
     wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,
     windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,cameraSpringYaw,bodyRoll:activeCar?.root.rotation.z||0,bodyPitch:activeCar?.root.rotation.x||0,save:readSave(),
-    rainCount:rain.count,lanternCount:lanterns.count,
+    rainCount:rain.count,lanternCount:lanterns.count,postfx:postfx.info(),
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
     trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
   })

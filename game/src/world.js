@@ -103,9 +103,10 @@ export function createCity(scene, mat) {
         cylinder(x+w*.32,h*.9+.2,z+d*.32,w*.25,w*.25,.4,mat.trim,20);
       }
       // Art Deco signature: stepped crown band, mid-tower spandrel band and corner fins in neon trim.
+      // Bands are kept slim but wide enough to read against the towers; bloom carries the glow.
       const trimMaterial=[mat.neonCyan,mat.neonMagenta,mat.neon][Math.abs(Math.imul(x,37)+Math.imul(z,61))%3];
-      box(x,h+1.4,z,w+1,.2,d+1,trimMaterial);
-      box(x,h*.78,z,w+.75,.16,d+.75,trimMaterial);
+      box(x,h+1.4,z,w+1,.34,d+1,trimMaterial);
+      box(x,h*.78,z,w+.75,.28,d+.75,trimMaterial);
       for(const side of [-1,1])box(x+side*(w/2+.2),h*.6,z,.16,h*.85,d+.6,mat.steel);
     }
     for(let level=5;level<h;level+=6.6) for(let col=-w/2+2;col<w/2-1;col+=4.4) {

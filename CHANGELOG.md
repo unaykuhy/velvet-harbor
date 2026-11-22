@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-22 — Milestone 3b-2: post-processing pipeline
+
+- **Post-processing** (new `game/src/postfx.js`, wired in `game/src/main.js`): EffectComposer chain RenderPass → UnrealBloomPass (threshold 0.85, strength 0.65, half-res on software renderers) → GradeShader (contrast 1.09, navy shadows, warm highlights, vignette 0.55) → OutputPass (ACESFilmic + sRGB). HalfFloat MSAA 4× render target on WebGL2.
+- **PMREM environment** (`buildEnvironment()`): night/day env maps generated from coded gradient scenes + emissive city-glow blocks — no external HDR files; `scene.environment` swaps with the clock (`game/src/render.js`).
+- **Look fixes**: asphalt base darkened `#31414a` → `#222c34` (pale road), lantern emissive 3.6 → 1.6 (white discs), neon trim raised (`game/src/render.js`, `game/src/weather.js`, `game/src/world.js`).
+- Verification: bundle rebuilt; tests **6/6**, `tsc --noEmit` **0 errors**, `node main.ts` **exit 0** (dossier 756,299 B in a fresh output dir), Playwright `verify-m3b2-postfx.cjs` **PASS** (MSAA 4×, 4 passes, bloom 0.85/0.65, walk + drive golden path, **0 console / 0 page errors / 0 non-file requests**), pixel evidence: clipped-white pixels down from 392/232 to **4/1**, road avg (0,1,31) dark navy, warm glow + vignette present. Software render **0.333 FPS** vs 0.393 baseline (SwiftShader, ~15% cost — not a GPU claim). Fresh screenshots `m3b2-street.jpg` + `m3b2-skyline.jpg` in `velvet-harbor-preview/`. Full numbers in QA.md (Milestone 3b-2 section).
+
 ## 2026-11-22 — Milestone 3b-1: fixed-step simulation + spring camera
 
 - **Fixed-step core** (`game/src/main.js`): simulation advances in exact 1/60 s ticks via an accumulator loop (`MAX_FRAME_DELTA` 0.05, max 4 steps/frame); all moving bodies keep prev/cur position+yaw buffers and are renderer-interpolated, so motion is smooth and deterministic at any frame rate. Teleports re-anchor interpolation via `snapInterpolation()`.

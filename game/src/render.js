@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { buildEnvironment } from './postfx.js';
 
 export function surfaceMaterial(options){
   return new T.MeshStandardMaterial(options);
@@ -59,8 +60,9 @@ export function makeMaterials() {
   };
   return {
     // Wet asphalt: the puddle-mask canvas drives both albedo and roughness, so the low spots
-    // stay smooth and mirror-ish while the rest of the tarmac stays matte.
-    asphalt:(()=>{const map=canvasTexture('asphalt','#31414a');map.repeat.set(35,35);
+    // stay smooth and mirror-ish while the rest of the tarmac stays matte. Deep navy base so
+    // the pavement reads dark at blue hour instead of washed-out pale.
+    asphalt:(()=>{const map=canvasTexture('asphalt','#222c34');map.repeat.set(35,35);
       const roughnessMap=map.clone();
       return surfaceMaterial({map,roughnessMap,roughness:1.0,metalness:.05,envMapIntensity:.35});})(),
     sidewalk:textured('sidewalk','#c6c4b0',.85,20),
@@ -88,15 +90,11 @@ export function createRenderer() {
   renderer.outputColorSpace = T.SRGBColorSpace;renderer.toneMapping = T.ACESFilmicToneMapping;renderer.toneMappingExposure = 1.1;
   renderer.shadowMap.enabled = true;renderer.shadowMap.type = T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;
   const scene = new T.Scene();scene.fog = new T.FogExp2('#add3cc',.0028);
-  const reflectionFaces=Array.from({length:6},(_,side)=>{
-    const canvas=document.createElement('canvas');canvas.width=canvas.height=64;
-    const c=canvas.getContext('2d'),gradient=c.createLinearGradient(0,0,0,64);
-    gradient.addColorStop(0,side===3?'#b49b78':'#8cbdcc');gradient.addColorStop(.53,'#e7dec2');gradient.addColorStop(.57,'#b3b59f');gradient.addColorStop(1,'#465b60');
-    c.fillStyle=gradient;c.fillRect(0,0,64,64);
-    if(side!==2&&side!==3){for(let i=0;i<10;i++){c.fillStyle=i%2?'#5c7e8399':'#a1aca099';c.fillRect(i*7,28-(i%3)*3,5,9+(i%3)*3);}}
-    return canvas;
-  });
-  const environment=new T.CubeTexture(reflectionFaces);environment.colorSpace=T.SRGBColorSpace;environment.needsUpdate=true;scene.environment=environment;
+  // PMREM environment built in code from gradient scenes (no external HDR):
+  // a blue-hour night variant with faint neon city glow, and a daylight one.
+  // Gives wet asphalt, car paint and glass properly blurred, living reflections.
+  const environment = buildEnvironment(renderer);
+  scene.environment = environment.night;
   const camera = new T.PerspectiveCamera(59,innerWidth/innerHeight,.15,1500);
   const hemisphere = new T.HemisphereLight('#d5f5ff','#b99770',2.1);scene.add(hemisphere);
   const sun = new T.DirectionalLight('#ffe0ac',3.4);sun.castShadow = true;
@@ -126,9 +124,10 @@ export function createRenderer() {
     hemisphere.groundColor.set('#3b3f66').lerp(new T.Color('#b99770'),daylight);
     sunDisk.position.set(focus.x+Math.cos(angle)*850,altitude*850,focus.z+350);sunDisk.visible=altitude>-.05;
     materials.windowLight.emissiveIntensity = (1-daylight)*2.2;materials.lamp.emissiveIntensity=(1-daylight)*3;
-    materials.neon.emissiveIntensity=.5+(1-daylight)*2;
-    materials.neonCyan.emissiveIntensity=.6+(1-daylight)*2.4;materials.neonMagenta.emissiveIntensity=.6+(1-daylight)*2.4;
+    materials.neon.emissiveIntensity=.6+(1-daylight)*2.4;
+    materials.neonCyan.emissiveIntensity=.7+(1-daylight)*3;materials.neonMagenta.emissiveIntensity=.7+(1-daylight)*3;
+    scene.environment = daylight>.5?environment.day:environment.night;
     return 1-daylight;
   }
-  return {renderer,scene,camera,updateDay};
+  return {renderer,scene,camera,updateDay,environment};
 }

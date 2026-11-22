@@ -28,7 +28,7 @@ export function createRain(scene) {
 export function createLanterns(scene) {
   const COUNT = 20;
   const geometry = new T.SphereGeometry(1,10,8);geometry.scale(1,1.35,1);
-  const material = new T.MeshStandardMaterial({color:'#5a3418',emissive:'#ffb066',emissiveIntensity:3.6,roughness:.6});
+  const material = new T.MeshStandardMaterial({color:'#5a3418',emissive:'#ffb066',emissiveIntensity:1.6,roughness:.6});
   const lanterns = new T.InstancedMesh(geometry,material,COUNT);lanterns.frustumCulled = false;
   const random = seededRandom(991);
   const data = Array.from({length:COUNT},()=>({x:-40+random()*220,z:300+random()*60,y:8+random()*14,phase:random()*Math.PI*2,drift:random()*Math.PI*2}));
