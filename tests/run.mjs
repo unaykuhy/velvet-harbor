@@ -1,0 +1,1 @@
+import './wanted.test.mjs';

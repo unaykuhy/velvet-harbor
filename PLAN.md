@@ -14,10 +14,7 @@
 
 ## Cut order
 
-1. Food carts, tide/flooding, lighthouse beam, then monorail.
-2. Additional environmental variety beyond the required city-life set.
-3. Optional visual variants and nonessential polish, while retaining the blue-hour/rain identity.
-4. Never cut bug fixes, typecheck, unit/browser/soak/network/manual checks, dossier checks, or any core feature.
+Nothing is cut: per the user decision on 2026-11-22 at ~14:55, creative extras and every verification gate remain in scope.
 
 ## Session 1 boundary
 

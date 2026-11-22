@@ -18,6 +18,7 @@ const reflectiveMaterials=new Set();graphics.scene.traverse(object=>{if(object.m
 const hud=createHUD(),minimap=createMinimap(world),audio=createAudio();
 const traffic=createTraffic(graphics.scene,vehicles);
 const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
+police.onWantedChange(detail=>window.dispatchEvent(new CustomEvent('velvet:wanted-change',{detail})));
 const pedestrians=createPedestrians(graphics.scene,world,traffic,()=>police.offence('pedestrian',activeCar.root.position));
 const state={money:2450,health:100,armor:50,minutes:16*60+40};
 const el=id=>document.getElementById(id);
@@ -152,4 +153,26 @@ Object.defineProperty(window,'velvet',{value:{
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
     trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
   })
+},writable:false});
+
+// Deterministic controls for browser verification; nothing runs until a test calls them.
+function testSnapshot(){
+  const policeState=police.inspect(),text=document.querySelector('.stars').textContent;
+  return {wanted:police.wanted,hudStars:Array.from(text).filter(star=>star==='★').length,hudText:text,hidden:policeState.hidden,seen:policeState.seen,clock:policeState.clock};
+}
+function refreshTestHUD(){const focus=activeCar?activeCar.root.position:mara.root.position;hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);}
+Object.defineProperty(window,'__vhTest',{value:{
+  forceWanted(level){
+    police.forceWanted(level);const focus=activeCar?activeCar.root.position:mara.root.position;police.update(0,focus,activeCar,0);refreshTestHUD();return testSnapshot();
+  },
+  advanceTime(seconds){
+    if(!Number.isFinite(seconds)||seconds<0)throw new TypeError('Fake time must be a finite, non-negative number');
+    let remaining=seconds;while(remaining>1e-10){const step=Math.min(1/60,remaining),focus=activeCar?activeCar.root.position:mara.root.position;police.update(0,focus,activeCar,step);remaining-=step;}
+    refreshTestHUD();return testSnapshot();
+  },
+  setPosition(x,z){
+    if(!Number.isFinite(x)||!Number.isFinite(z))throw new TypeError('Test position must be finite');
+    const root=activeCar?activeCar.root:mara.root;root.position.set(x,root.position.y,z);cameraReady=false;police.update(0,root.position,activeCar,0);refreshTestHUD();return testSnapshot();
+  },
+  snapshot:testSnapshot
 },writable:false});

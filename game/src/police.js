@@ -8,7 +8,7 @@ export function createPolice(scene,world,vehicles,notify){
   const cars=[],officers=[],events=[],lastKnown=new T.Vector3(3,0,140);
   const listener=new T.Vector3(8,0,150);
   let wanted=0,hidden=0,clock=0,nextSpawn=0,blockTime=-100,serial=0,seen=false,dispatchUntil=0;
-  const cooldowns=new Map();
+  const cooldowns=new Map(),wantedListeners=new Set();
   const model={...vehicleModels[1],name:'Halden Rhino Interceptor',color:'#203b50',top:42};
   const nearestAvenue=value=>avenues.reduce((a,b)=>Math.abs(b-value)<Math.abs(a-value)?b:a);
   function visible(from,to,range=80){
@@ -18,10 +18,21 @@ export function createPolice(scene,world,vehicles,notify){
     return true;
   }
   function witnessed(position){return cars.some(c=>visible(c.root.position,position,85))||officers.some(o=>o.root.visible&&visible(o.root.position,position,55));}
+  function changeWanted(value,reason,time=clock){
+    const previous=wanted;wanted=Math.max(0,Math.min(5,Math.trunc(value)));if(previous===wanted)return;
+    const detail={previous,wanted,time,reason,helicopterRequired:wanted>=5};
+    events.push({kind:'wanted-change',...detail});if(events.length>16)events.shift();
+    for(const listener of wantedListeners)listener({...detail});
+  }
+  function onWantedChange(listener){wantedListeners.add(listener);return()=>wantedListeners.delete(listener);}
+  function forceWanted(level){
+    if(!Number.isFinite(level))throw new TypeError('Wanted level must be finite');
+    hidden=0;changeWanted(Math.max(0,Math.min(5,Math.round(level))),'test');
+  }
   function offence(kind,position,needsWitness=false){
     if(needsWitness&&!witnessed(position))return false;
     if(clock<(cooldowns.get(kind)||0))return false;
-    cooldowns.set(kind,clock+(kind==='collision'?3:5));wanted=Math.min(5,wanted+1);hidden=0;lastKnown.copy(position);dispatchUntil=clock+2;
+    cooldowns.set(kind,clock+(kind==='collision'?3:5));changeWanted(wanted+1,kind);hidden=0;lastKnown.copy(position);dispatchUntil=clock+2;
     events.push({kind,wanted,time:clock});if(events.length>16)events.shift();
     notify(`${kind==='theft'?'Vehicle theft witnessed':kind==='red light'?'Red light witnessed':kind==='pedestrian'?'Pedestrian struck':'Collision reported'} · ${wanted} ${wanted===1?'star':'stars'}`);nextSpawn=Math.min(nextSpawn,clock);return true;
   }
@@ -77,7 +88,14 @@ export function createPolice(scene,world,vehicles,notify){
   function update(dt,focus,active,clockDelta=dt){
     listener.copy(focus);
     clock+=clockDelta;seen=wanted>0&&witnessed(focus);
-    if(seen){lastKnown.copy(focus);hidden=0;}else if(wanted>0){hidden+=clockDelta;if(hidden>=20){wanted--;hidden=0;notify(wanted?'Search cooling · wanted level reduced':'Search ended · you lost the police');}}
+    if(seen){lastKnown.copy(focus);hidden=0;}else if(wanted>0){
+      hidden+=clockDelta;
+      while(wanted>0&&hidden>=20-1e-9){
+        hidden=Math.max(0,hidden-20);changeWanted(wanted-1,'line-of-sight-lost',clock-hidden);
+        notify(wanted?'Search cooling · wanted level reduced':'Search ended · you lost the police');
+      }
+      if(wanted===0)hidden=0;
+    }
     const pursuit=cars.filter(c=>!c.roadblock);
     if(wanted>0&&seen&&pursuit.length<Math.min(4,wanted+1)&&clock>=nextSpawn){spawnPursuit(focus,active?.heading||0);nextSpawn=clock+5;}
     if(wanted>0&&pursuit.length<2&&clock>=nextSpawn&&clock<dispatchUntil){spawnPursuit(lastKnown,active?.heading||0);nextSpawn=clock+5;}
@@ -107,5 +125,5 @@ export function createPolice(scene,world,vehicles,notify){
     if(wanted===0&&cars.length===0&&focus.distanceTo(new T.Vector3(3,0,134))<130)makeUnit(3,134,0);
   }
   reset();
-  return {cars,officers,update,reset,offence,witnessed,get wanted(){return wanted;},get seen(){return seen;},get siren(){return wanted>0?Math.max(0,...cars.map(c=>1-c.root.position.distanceTo(listener)/120)):0;},inspect:()=>({wanted,hidden,seen,lastKnown:lastKnown.toArray(),roadblocks:cars.filter(c=>c.roadblock).length,officers:officers.filter(o=>o.root.visible).length,events:[...events],cars:cars.map(c=>({id:c.id,position:c.root.position.toArray(),speed:c.speed,heading:c.heading,roadblock:c.roadblock,unseen:c.unseen,flash:c.flash.map(m=>m.emissiveIntensity)}))})};
+  return {cars,officers,update,reset,offence,witnessed,forceWanted,onWantedChange,get wanted(){return wanted;},get seen(){return seen;},get siren(){return wanted>0?Math.max(0,...cars.map(c=>1-c.root.position.distanceTo(listener)/120)):0;},inspect:()=>({wanted,hidden,clock,seen,lastKnown:lastKnown.toArray(),roadblocks:cars.filter(c=>c.roadblock).length,officers:officers.filter(o=>o.root.visible).length,events:[...events],cars:cars.map(c=>({id:c.id,position:c.root.position.toArray(),speed:c.speed,heading:c.heading,roadblock:c.roadblock,unseen:c.unseen,flash:c.flash.map(m=>m.emissiveIntensity)}))})};
 }
