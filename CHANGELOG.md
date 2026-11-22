@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-22 — Milestone 3a: signature blue-hour look
+
+- Default time is now **18:30 blue hour** (New Game, title scene, HUD clock): navy `#0e1738` / violet `#232a52` sky gradient with a warm horizon ember, bluish hemisphere ambient (sky `#8fa3e8`, ground `#3b3f66`), low amber sun ramp (`game/src/render.js` `updateDay`, `game/src/main.js`, `game/index.html`).
+- **Wet streets**: the asphalt puddle-mask canvas texture now drives albedo + roughness map (puddles ≈ 0.28, tarmac ≈ 0.6 roughness) and asphalt gets a night env sheen (`envMapIntensity 0.45 + night·1.05`) so neon and light bars read on the tarmac (`game/src/render.js`, `game/src/main.js`).
+- **Light rain**: 640 instanced streaks around the camera, one draw call, no per-drop physics (new `game/src/weather.js`).
+- **Sky lanterns**: 20 instanced warm-emissive lanterns over the bay, one draw call, slow sine drift (new `game/src/weather.js`).
+- **Art Deco trim**: downtown towers gain stepped neon crown + spandrel bands and steel corner fins; neon cyan/magenta/amber trim colors merged into existing bake batches (`game/src/world.js`, new `neonCyan`/`neonMagenta` materials in `game/src/render.js`).
+- Bundle rebuilt with esbuild. Verification: tests **6/6**, `tsc --noEmit` **0 errors**, `node main.ts` **exit 0**, Playwright **0 console / 0 page errors / 0 non-file requests**, draw calls **298** in play mode (rain+lanterns = +2), software-rendered **0.33 FPS** (SwiftShader, not a GPU claim), screenshots `m3a-street.jpg` + `m3a-skyline.jpg` in `velvet-harbor-preview/`. Full numbers in QA.md (Milestone 3a section).
+- Post-review fix: asphalt base `roughness` 2.6 → 1.0 (2.6 outside standard `[0,1]`; dark `roughnessMap` already gives 0–1 variation) and removed the unnecessary `roughnessMap.needsUpdate=true` (`game/src/render.js`). Bundle rebuilt; full verification re-run, all green (see QA.md).
+
 ## 2026-11-22 — District rename: v1 names → v3 names
 
 - Replaced all four v1 district names with v3 names in `districtAt` (`game/src/world.js`): z > 110 → **Pearlwake Boulevard**, x > 100 → **Lanternfish Marina**, x < −100 → **Sunwick Hills**, default → **Prism Heights**. No new zones added.

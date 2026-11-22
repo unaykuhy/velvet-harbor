@@ -70,6 +70,29 @@ The unchanged dossier library has SHA-256 `dc67187521b24025ff952f8c231485a6eb92d
 
 All four captures are 1280×720, taken by `verify-districts-playwright.cjs` (Chromium, `xvfb-run`). No v1 district name (the four old zone labels replaced by the names above) appears in any page text. Gates: 0 console errors, 0 page errors, 0 non-file requests.
 
+## Milestone 3a — signature blue-hour look (2026-11-22)
+
+What changed (look only; no gameplay, police, vehicle, mission, or save logic touched):
+
+- **Blue hour 18:30 default** — New Game and the title scene now start at 18:30 (`game/src/main.js`, `game/index.html`). `updateDay` (`game/src/render.js`) re-tuned: night sky zenith `#0e1738` (navy) and horizon `#232a52` (violet) with a warm ember `#c76a4e` blended near the horizon at dusk; hemisphere light now bluish (`#8fa3e8` sky / `#3b3f66` ground) with a higher night floor (0.95) so the city reads blue-violet, not daylight; the low sun lingers with a warm amber ramp (`max(0, altitude+0.2)·3.1`).
+- **Wet streets** — the asphalt puddle-mask edit in `canvasTexture` (`game/src/render.js`, kept from the earlier session) is now actually used: the asphalt material switches from the `noise` texture to the `asphalt` puddle texture, which also drives a `roughnessMap` (puddle spots smooth ≈ 0.28, tarmac ≈ 0.6). `main.js` gives asphalt its own env sheen after dark (`envMapIntensity 0.45+night·1.05`), so the static env map and neon/light-bar emissives read on the tarmac. No ray tracing; two extra canvas textures total.
+- **Light rain** — new `game/src/weather.js`: 640 instanced streaks (`InstancedMesh`, one draw call) recycled in a ring around the camera, slight tilt, no per-drop physics.
+- **Sky lanterns** — same module: 20 instanced warm-emissive lanterns (`#ffb066`, intensity 3.6) over the bay (z 300–360), one draw call, drifting on slow sine paths.
+- **Art Deco trim** — downtown towers (style 0) get a stepped neon crown band, a mid-tower spandrel band, and steel corner fins (`game/src/world.js`), colors picked deterministically from cyan `#37e6ff` / magenta `#ff4fd8` / amber-red `#ff755f` emissive materials (merged into the existing bake batches — no per-building meshes).
+- New neon materials `neonCyan`/`neonMagenta` in `makeMaterials`, pulsed by `updateDay`.
+
+Verification (all numbers from this session's runs):
+
+- `node --test tests/run.mjs`: **6/6 pass**.
+- `npx -y -p typescript tsc --noEmit`: **0 errors**.
+- `node main.ts`: **exit 0**, 0.43 s; dossier regenerated (`/output/dossier.json`, 743,914 bytes). Note: `/output/screenshots/` held 5 stale `district-*` files from an earlier session that tripped the 4-file cap; they were removed (they were never in the repo — repo `screenshots/` still holds exactly 4 files).
+- Playwright (`velvet-harbor-launcher/verify-m3a-look-playwright.cjs`, Chromium 1148, `xvfb-run`, file://, 1280×720, DOM `#new` click): **PASS**. Started at **18:30 (minutes ≈ 1111)**; walked 0.54 m (frame-limited, see FPS); entered car `bay-0` and moved (speed 1.76 m/s); rain **640** instances; lanterns **20**; **0 console errors, 0 page errors, 0 non-file requests**.
+- Draw calls (`renderer.info.render.calls`, play mode at spawn): **298** (237,439 triangles, 23 shader programs); 479 at the downtown street teleport with more batches in view. Rain + lanterns add exactly 2 draw calls; neon trim merges into ~5 extra batched meshes.
+- FPS: **0.33** — SwiftShader/llvmpipe software rendering in this headless VM (Chromium ANGLE → Mesa), consistent with prior sessions on this machine (Bug B run: 0.358 FPS). This is a software measurement, **NOT** a GPU or real-laptop claim.
+- Pixel evidence (`velvet-harbor-launcher/m3a-pixel-evidence.cjs`): street shot sky average RGB **(32,35,43)** (dark navy), skyline sky average **(68,45,69)** (violet), 42%/58% blue-violet pixel share respectively; skyline shows lanterns as **11 distinct warm-glow regions**; street shot 808 warm (lamp/window) pixels across 17 regions.
+- Screenshots (1280×720, in `~/workspace/makefun/velvet-harbor-preview/`, NOT in `screenshots/`): `m3a-street.jpg` (102,226 bytes, street-level blue hour with rain and wet-asphalt sheen, HUD + clock visible) and `m3a-skyline.jpg` (97,746 bytes, skyline over the bay with sky lanterns).
+- **Post-review fix (Medium finding)** — asphalt base roughness corrected from `2.6` (outside the standard `[0,1]` range) to `1.0`; the dark `roughnessMap` already provides 0–1 variation. Removed the redundant `roughnessMap.needsUpdate=true` (texture never changes after creation). Bundle rebuilt; re-verified: tests **6/6**, `tsc --noEmit` **0 errors**, `node main.ts` **exit 0**, Playwright re-run **PASS** (18:30 start, rain 640, lanterns 20, 0 console / 0 page errors, 0 non-file requests); screenshots regenerated.
+
 ## Known limits
 
 Software rendering is too slow for comfortable play. The measured performance gate is not passed, and hardware performance must be assessed before accepting the build. The simulation limits long frame steps to preserve collision stability, so play and the clock slow down under very low frame rates. The software renderer uses reduced internal resolution and a smaller shadow map; the UI and screenshots retain the requested viewport dimensions.

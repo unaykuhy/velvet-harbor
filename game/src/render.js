@@ -34,6 +34,12 @@ export function canvasTexture(kind, tint = '#dfcbb0') {
     ctx.strokeStyle = '#8c988b55';ctx.lineWidth = 2;
     for (let p = 0; p < 256; p += 64) {ctx.moveTo(p, 0);ctx.lineTo(p, 256);ctx.moveTo(0, p);ctx.lineTo(256, p);}ctx.stroke();
   }
+  if (kind === 'asphalt') {
+    for (let i = 0; i < 42; i++) {
+      ctx.fillStyle = i % 3 ? '#101b3038' : '#59648824';
+      ctx.beginPath();ctx.ellipse(random()*256,random()*256,5+random()*20,2+random()*8,random()*Math.PI,0,Math.PI*2);ctx.fill();
+    }
+  }
   if (kind === 'grass') for (let i = 0; i < 2500; i++) {ctx.fillStyle = '#a5b76e30';ctx.fillRect(random()*256,random()*256,1,5);}
   const texture = new T.CanvasTexture(canvas);
   texture.colorSpace = T.SRGBColorSpace;
@@ -52,7 +58,12 @@ export function makeMaterials() {
     return surfaceMaterial({ map, roughness });
   };
   return {
-    asphalt:textured('noise','#35464a',.95,35), sidewalk:textured('sidewalk','#c6c4b0',.85,20),
+    // Wet asphalt: the puddle-mask canvas drives both albedo and roughness, so the low spots
+    // stay smooth and mirror-ish while the rest of the tarmac stays matte.
+    asphalt:(()=>{const map=canvasTexture('asphalt','#31414a');map.repeat.set(35,35);
+      const roughnessMap=map.clone();
+      return surfaceMaterial({map,roughnessMap,roughness:1.0,metalness:.05,envMapIntensity:.35});})(),
+    sidewalk:textured('sidewalk','#c6c4b0',.85,20),
     grass:textured('grass','#637a4a',1,16), sand:textured('noise','#e2c99d',1,12),
     cream:textured('facade','#e6d9b8',.82),coral:textured('facade','#d58c79',.8),teal:textured('facade','#86b3aa',.7),
     glass:surfaceMaterial({map:canvasTexture('glass','#356c7c'),color:'#b2d1cb',roughness:.24,metalness:.42}),
@@ -62,6 +73,8 @@ export function makeMaterials() {
     windowLight:surfaceMaterial({color:'#426673',emissive:'#ffbd69',emissiveIntensity:0,roughness:.4}),
     lamp:surfaceMaterial({color:'#fff1ce',emissive:'#ffdb9b',emissiveIntensity:0}),
     neon:surfaceMaterial({color:'#faac9e',emissive:'#ff755f',emissiveIntensity:.5}),
+    neonCyan:surfaceMaterial({color:'#9adfe8',emissive:'#37e6ff',emissiveIntensity:.6}),
+    neonMagenta:surfaceMaterial({color:'#e79ad8',emissive:'#ff4fd8',emissiveIntensity:.6}),
   };
 }
 
@@ -101,16 +114,20 @@ export function createRenderer() {
     const angle = (minutes / 1440 - .25) * Math.PI * 2;
     const altitude = Math.sin(angle);const daylight = T.MathUtils.smoothstep(altitude,-.12,.3);
     const dusk = 1-Math.min(1,Math.abs(altitude)*3);
-    const horizon = new T.Color('#102639').lerp(new T.Color('#b9d8ce'),daylight).lerp(new T.Color('#f7bd9e'),dusk*.55);
+    // Signature blue hour: navy/violet night, soft bluish ambient, a warm ember near the horizon.
+    const horizon = new T.Color('#232a52').lerp(new T.Color('#b9d8ce'),daylight).lerp(new T.Color('#c76a4e'),dusk*.45);
     sky.material.uniforms.horizon.value.copy(horizon);
-    sky.material.uniforms.zenith.value.set('#071528').lerp(new T.Color('#599eb9'),daylight);
+    sky.material.uniforms.zenith.value.set('#0e1738').lerp(new T.Color('#599eb9'),daylight);
     sky.position.copy(focus);scene.fog.color.copy(horizon);scene.fog.density = .0026 + (1-daylight)*.0007;
     sun.position.set(focus.x+Math.cos(angle)*160,altitude*190+20,focus.z+85);sun.target.position.copy(focus);
-    sun.intensity = Math.max(0,altitude)*3.5;sun.color.set('#fff0c6').lerp(new T.Color('#ffab77'),dusk);
-    hemisphere.intensity = .48+daylight*1.7;
+    sun.intensity = Math.max(0,altitude+.2)*3.1;sun.color.set('#fff0c6').lerp(new T.Color('#ffab77'),dusk);
+    hemisphere.intensity = .95+daylight*1.25;
+    hemisphere.color.set('#8fa3e8').lerp(new T.Color('#d5f5ff'),daylight);
+    hemisphere.groundColor.set('#3b3f66').lerp(new T.Color('#b99770'),daylight);
     sunDisk.position.set(focus.x+Math.cos(angle)*850,altitude*850,focus.z+350);sunDisk.visible=altitude>-.05;
     materials.windowLight.emissiveIntensity = (1-daylight)*2.2;materials.lamp.emissiveIntensity=(1-daylight)*3;
     materials.neon.emissiveIntensity=.5+(1-daylight)*2;
+    materials.neonCyan.emissiveIntensity=.6+(1-daylight)*2.4;materials.neonMagenta.emissiveIntensity=.6+(1-daylight)*2.4;
     return 1-daylight;
   }
   return {renderer,scene,camera,updateDay};

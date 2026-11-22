@@ -11,16 +11,18 @@ import {createAudio} from './audio.js';
 import {createTraffic} from './traffic.js';
 import {createPedestrians} from './peds.js';
 import {createPolice} from './police.js';
+import {createRain,createLanterns} from './weather.js';
 
 const graphics=createRenderer(),materials=makeMaterials();
 const world=createCity(graphics.scene,materials),vehicles=createVehicles(graphics.scene),mara=createMara(graphics.scene);
+const rain=createRain(graphics.scene),lanterns=createLanterns(graphics.scene);
 const reflectiveMaterials=new Set();graphics.scene.traverse(object=>{if(object.material?.isMeshStandardMaterial)reflectiveMaterials.add(object.material);});
 const hud=createHUD(),minimap=createMinimap(world),audio=createAudio();
 const traffic=createTraffic(graphics.scene,vehicles);
 const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
 police.onWantedChange(detail=>window.dispatchEvent(new CustomEvent('velvet:wanted-change',{detail})));
 const pedestrians=createPedestrians(graphics.scene,world,traffic,()=>police.offence('pedestrian',activeCar.root.position));
-const state={money:2450,health:100,armor:50,minutes:16*60+40};
+const state={money:2450,health:100,armor:50,minutes:18*60+30};
 const el=id=>document.getElementById(id);
 let mode='start',activeCar=null,shake=0,elapsed=0,lastSave=0,lastTime=performance.now(),frames=0;
 let cameraReady=false,night=0;
@@ -46,7 +48,7 @@ function begin(load) {
     const saved=readSave();if(!saved){hud.toast('No saved game is available.');return;}
     activeCar=applySave(saved,state,mara,vehicles);
   }else{
-    state.money=2450;state.health=100;state.armor=50;state.minutes=1000;
+    state.money=2450;state.health=100;state.armor=50;state.minutes=1110;
     mara.root.position.set(8,0,150);mara.reset();activeCar=null;
     vehicles.cars.forEach((car,i)=>{car.root.position.copy(initialCars[i].position);car.heading=initialCars[i].heading;car.root.rotation.set(0,car.heading,0);car.speed=0;car.damage=0;car.owned=false;});
   }
@@ -124,14 +126,17 @@ function animate(now) {
     const steps=Math.ceil(dt/.012);for(let i=0;i<steps;i++){traffic.update(dt/steps,activeCar,focus,pedestrians.people);police.update(dt/steps,focus,activeCar,realDelta/steps,playerHeading);pedestrians.update(dt/steps,activeCar,focus,[...vehicles.cars,...police.cars]);}
     updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
     world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);
+    rain.update(dt,graphics.camera);lanterns.update(elapsed);
     hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
     if(elapsed-lastSave>20){writeSave(state,mara,vehicles,activeCar);lastSave=elapsed;}
   }else if(mode==='start'){
     const focus=new T.Vector3(0,0,155);night=graphics.updateDay(state.minutes,focus,materials);world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,null);
+    rain.update(.016,graphics.camera);lanterns.update(elapsed);
     graphics.camera.position.set(304+Math.sin(elapsed*.025)*2,30,244);graphics.camera.lookAt(15,14,55);
   }
   audio.update(activeCar?.speed||0,!!activeCar,mode!=='play',police.siren);
-  reflectiveMaterials.forEach(material=>{material.envMapIntensity=.035+(1-night)*.65;});
+  // Wet asphalt keeps a strong environment sheen after dark so neon and light bars read on the tarmac.
+  reflectiveMaterials.forEach(material=>{material.envMapIntensity=material===materials.asphalt?.45+night*1.05:.035+(1-night)*.65;});
   const shadowFocus=activeCar?activeCar.root.position:mara.root.position;
   if(shadowFocus.distanceToSquared(lastShadowPosition)>36||Math.abs(state.minutes-lastShadowMinute)>4){
     graphics.renderer.shadowMap.needsUpdate=true;lastShadowPosition.copy(shadowFocus);lastShadowMinute=state.minutes;
@@ -150,6 +155,7 @@ Object.defineProperty(window,'velvet',{value:{
     frames,night,audio:audio.available,cameraFov:graphics.camera.fov,drawCalls:graphics.renderer.info.render.calls,triangles:graphics.renderer.info.render.triangles,shaderPrograms:graphics.renderer.info.programs.length,seed:world.seed,
     wheelRotation:activeCar?.wheels[0].rotation.x||0,smokePuffs:activeCar?.smoke.children.filter(p=>p.visible).length||0,
     windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,save:readSave(),
+    rainCount:rain.count,lanternCount:lanterns.count,
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
     trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
   })
@@ -181,3 +187,6 @@ Object.defineProperty(window,'__vhTest',{value:{
   },
   snapshot:testSnapshot
 },writable:false});
+// Screenshot-only hook: freezes a camera pose for skyline captures (no gameplay effect).
+Object.defineProperty(window,'__vhCamera',{value:(pos,look)=>{graphics.camera.position.set(pos[0],pos[1],pos[2]);graphics.camera.lookAt(look[0],look[1],look[2]);},writable:false});
+
