@@ -120,8 +120,8 @@ function animate(now) {
       const count=Math.ceil(dt/.012);for(let i=0;i<count;i++)vehicles.drive(activeCar,dt/count,input,world,(force,other)=>{shake=Math.min(3,force/8);audio.impact(force);if(force>5)hud.toast('Hard impact · vehicle damaged');if(other)police.offence('collision',activeCar.root.position);});
       if(traffic.checkRedCrossing(activeCar,previous))police.offence('red light',activeCar.root.position,true);
     }else{const walkingSteps=Math.ceil(dt/.02);for(let i=0;i<walkingSteps;i++)mara.update(dt/walkingSteps,input,input.yaw,world);}
-    const focus=activeCar?activeCar.root.position:mara.root.position;
-    const steps=Math.ceil(dt/.012);for(let i=0;i<steps;i++){traffic.update(dt/steps,activeCar,focus,pedestrians.people);police.update(dt/steps,focus,activeCar,realDelta/steps);pedestrians.update(dt/steps,activeCar,focus,[...vehicles.cars,...police.cars]);}
+    const focus=activeCar?activeCar.root.position:mara.root.position,playerHeading=activeCar?.heading??mara.root.rotation.y;
+    const steps=Math.ceil(dt/.012);for(let i=0;i<steps;i++){traffic.update(dt/steps,activeCar,focus,pedestrians.people);police.update(dt/steps,focus,activeCar,realDelta/steps,playerHeading);pedestrians.update(dt/steps,activeCar,focus,[...vehicles.cars,...police.cars]);}
     updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
     world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);
     hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
@@ -173,6 +173,11 @@ Object.defineProperty(window,'__vhTest',{value:{
   setPosition(x,z){
     if(!Number.isFinite(x)||!Number.isFinite(z))throw new TypeError('Test position must be finite');
     const root=activeCar?activeCar.root:mara.root;root.position.set(x,root.position.y,z);cameraReady=false;police.update(0,root.position,activeCar,0);refreshTestHUD();return testSnapshot();
+  },
+  spawnPoliceAhead(forward=4,side=0){
+    if(!Number.isFinite(forward)||!Number.isFinite(side))throw new TypeError('Test police offset must be finite');
+    const focus=activeCar?activeCar.root.position:mara.root.position,heading=activeCar?.heading??mara.root.rotation.y;
+    const car=police.spawnTestUnit(focus,heading,forward,side);refreshTestHUD();return {id:car.id,position:car.root.position.toArray()};
   },
   snapshot:testSnapshot
 },writable:false});

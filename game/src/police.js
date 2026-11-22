@@ -4,6 +4,11 @@ import {avenues,bridgeHeight} from './world.js';
 import {standard,surfaceMaterial} from './render.js';
 import {buildCitizen} from './peds.js';
 
+export function policeSpawnClear(x,z,focus,heading){
+  const dx=x-focus.x,dz=z-focus.z,ahead=-dx*Math.sin(heading)-dz*Math.cos(heading),lateral=Math.abs(dx*Math.cos(heading)-dz*Math.sin(heading));
+  return ahead<=0||ahead>=15||lateral>=2.5+ahead*Math.tan(Math.PI/6);
+}
+
 export function createPolice(scene,world,vehicles,notify){
   const cars=[],officers=[],events=[],lastKnown=new T.Vector3(3,0,140);
   const listener=new T.Vector3(8,0,150);
@@ -48,7 +53,7 @@ export function createPolice(scene,world,vehicles,notify){
     for(const side of [-1,1]){const m=new T.Mesh(new T.PlaneGeometry(1.9,.46),label);m.position.set(side*1.185,1.18,.1);m.rotation.y=side*Math.PI/2;car.root.add(m);}
     box(1.55,.13,.4,0,2.88,0,dark);car.flash=[];
     for(const side of [-1,1]){const mat=surfaceMaterial({color:side<0?'#ff483d':'#4a9eff',emissive:side<0?'#ff1910':'#167bff',emissiveIntensity:3});box(.62,.18,.34,side*.4,3.02,0,mat);car.flash.push(mat);}
-    car.path=[];car.repath=0;car.unseen=0;car.search=lastKnown.clone();scene.add(car.root);cars.push(car);vehicles.external.push(car);return car;
+    car.path=[];car.repath=0;car.unseen=0;car.blockFor=0;car.blockFocus=null;car.search=lastKnown.clone();scene.add(car.root);cars.push(car);vehicles.external.push(car);return car;
   }
   function free(x,z,heading){const probe={model,heading};return !world.blocked(x,z,1,0)&&![...vehicles.cars,...cars].some(c=>carsOverlap(probe,new T.Vector3(x,.02,z),c,c.root.position,1));}
   function spawnPursuit(focus,heading){
@@ -56,7 +61,7 @@ export function createPolice(scene,world,vehicles,notify){
       let x=focus.x+Math.sin(heading)*distance*side,z=focus.z+Math.cos(heading)*distance*side;
       if(Math.abs(Math.sin(heading))<.7)x=nearestAvenue(focus.x)+3;else z=nearestAvenue(focus.z)+3;
       if(Math.abs(x)>260||Math.abs(z)>260)continue;
-      if(free(x,z,heading)){const c=makeUnit(x,z,heading);c.search.copy(lastKnown);return;}
+      if(free(x,z,heading)&&policeSpawnClear(x,z,focus,heading)){const c=makeUnit(x,z,heading);c.search.copy(lastKnown);return;}
     }
   }
   function roadblock(focus,heading){
@@ -65,8 +70,8 @@ export function createPolice(scene,world,vehicles,notify){
     for(const distance of [57,66,48,75]){
       const along=(vertical?focus.z:focus.x)+sign*distance;
       if(Math.abs(along)>255)continue;
-      const locations=[-3.5,2.5].map(offset=>vertical?[axis+offset,along]:[along,axis+offset]);
-      if(locations.some(([x,z])=>!free(x,z,angle)))continue;
+      const locations=[-6,6].map(offset=>vertical?[axis+offset,along]:[along,axis+offset]);
+      if(locations.some(([x,z])=>!free(x,z,angle)||!policeSpawnClear(x,z,focus,heading)))continue;
       for(const [x,z] of locations)makeUnit(x,z,angle,true);
       blockTime=clock;notify('Roadblock reported ahead · use another avenue');return;
     }
@@ -84,8 +89,23 @@ export function createPolice(scene,world,vehicles,notify){
     car.path=points.filter(([x,z])=>Math.hypot(p.x-x,p.z-z)>2);
   }
   function remove(car){scene.remove(car.root);cars.splice(cars.indexOf(car),1);vehicles.external.splice(vehicles.external.indexOf(car),1);const mats=new Set();car.root.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)mats.add(o.material);});for(const m of mats){m.map?.dispose();m.dispose();}}
+  function spawnTestUnit(focus,heading,forward=4,side=0){
+    for(const car of [...cars])remove(car);
+    const x=focus.x-Math.sin(heading)*forward+Math.cos(heading)*side,z=focus.z-Math.cos(heading)*forward-Math.sin(heading)*side;
+    return makeUnit(x,z,heading);
+  }
   function reset(){for(const c of [...cars])remove(c);for(const o of officers)scene.remove(o.root);officers.length=0;wanted=0;hidden=0;clock=0;seen=false;nextSpawn=0;dispatchUntil=0;blockTime=-100;cooldowns.clear();events.length=0;makeUnit(3,134,0);}
-  function update(dt,focus,active,clockDelta=dt){
+  function clearsBlockingUnit(car,focus,active,elapsed,playerHeading){
+    car.blockFocus??=focus.clone();
+    const moved=car.blockFocus.distanceTo(focus);car.blockFocus.copy(focus);
+    if(!active){car.blockFor=0;return false;}
+    const p=car.root.position,dx=p.x-focus.x,dz=p.z-focus.z,ahead=-dx*Math.sin(playerHeading)-dz*Math.cos(playerHeading),lateral=Math.abs(dx*Math.cos(playerHeading)-dz*Math.sin(playerHeading));
+    const near=ahead>-(active.model.length+car.model.length)/2-1&&ahead<12&&lateral<(active.model.width+car.model.width)/2+1;
+    car.blockFor=near&&Math.abs(active.speed)<.5&&moved<=Math.max(.002,elapsed*.5)?car.blockFor+elapsed:0;
+    if(car.blockFor<3-1e-9)return false;
+    remove(car);return true;
+  }
+  function update(dt,focus,active,clockDelta=dt,playerHeading=active?.heading||0){
     listener.copy(focus);
     clock+=clockDelta;seen=wanted>0&&witnessed(focus);
     if(seen){lastKnown.copy(focus);hidden=0;}else if(wanted>0){
@@ -97,11 +117,12 @@ export function createPolice(scene,world,vehicles,notify){
       if(wanted===0)hidden=0;
     }
     const pursuit=cars.filter(c=>!c.roadblock);
-    if(wanted>0&&seen&&pursuit.length<Math.min(4,wanted+1)&&clock>=nextSpawn){spawnPursuit(focus,active?.heading||0);nextSpawn=clock+5;}
-    if(wanted>0&&pursuit.length<2&&clock>=nextSpawn&&clock<dispatchUntil){spawnPursuit(lastKnown,active?.heading||0);nextSpawn=clock+5;}
-    if(wanted>=3&&seen&&clock-blockTime>35&&cars.filter(c=>c.roadblock).length<4)roadblock(focus,active?.heading||0);
+    if(wanted>0&&seen&&pursuit.length<Math.min(4,wanted+1)&&clock>=nextSpawn){spawnPursuit(focus,playerHeading);nextSpawn=clock+5;}
+    if(wanted>0&&pursuit.length<2&&clock>=nextSpawn&&clock<dispatchUntil){spawnPursuit(lastKnown,playerHeading);nextSpawn=clock+5;}
+    if(wanted>=3&&seen&&clock-blockTime>35&&cars.filter(c=>c.roadblock).length<4)roadblock(focus,playerHeading);
     if(wanted>=3&&officers.length<2){const anchor=cars.find(c=>c.roadblock)||cars[0];if(anchor){const o=buildCitizen(scene,officers.length,true);o.root.position.copy(anchor.root.position).add(new T.Vector3(4,0,0));officers.push(o);}}
     for(const c of [...cars]){
+      if(clearsBlockingUnit(c,focus,active,clockDelta,playerHeading))continue;
       const p=c.root.position,canSee=visible(p,focus,85);c.unseen=canSee?0:c.unseen+clockDelta;
       c.flash.forEach((m,i)=>m.emissiveIntensity=wanted>0&&Math.floor(clock*7)%2===i?5:.04);
       c.root.visible=p.distanceToSquared(focus)<150*150;
@@ -114,16 +135,16 @@ export function createPolice(scene,world,vehicles,notify){
       const dx=goal[0]-p.x,dz=goal[1]-p.z,distance=Math.hypot(dx,dz);if(distance<2){c.path.shift();continue;}
       const oldHeading=c.heading;c.heading=Math.atan2(-dx,-dz);
       if([...vehicles.cars,...cars].some(o=>o!==c&&carsOverlap(c,p,o,o.root.position,.15))){c.heading=oldHeading;c.speed=0;continue;}
-      const following=canSee&&p.distanceTo(focus)<10;
-      const desired=following?Math.max(0,(p.distanceTo(focus)-5)*2):c.unseen>12?0:Math.min(42,16+wanted*5);c.speed=T.MathUtils.damp(c.speed,desired,2,dt);
+      const following=canSee&&p.distanceTo(focus)<10,inFront=!policeSpawnClear(p.x,p.z,focus,playerHeading)&&p.distanceTo(focus)<17;
+      const desired=inFront?-7:following?Math.max(0,(p.distanceTo(focus)-5)*2):c.unseen>12?0:Math.min(42,16+wanted*5);c.speed=T.MathUtils.damp(c.speed,desired,2,dt);
       const next=p.clone().add(new T.Vector3(dx/distance,0,dz/distance).multiplyScalar(Math.min(distance,c.speed*dt)));
       const obstacle=[...vehicles.cars,...cars].some(o=>o!==c&&carsOverlap(c,next,o,o.root.position,.35));
       if(!obstacle&&!world.blocked(next.x,next.z,1.2,next.y+.1)){p.copy(next);p.y=bridgeHeight(p.x,p.z)+.02;}else{c.speed=0;c.repath=Math.min(c.repath,.5);}
       animateAICar(c,dt);
     }
     for(const o of officers){const p=o.root.position,dist=p.distanceTo(focus);let speed=0;if(wanted>0&&visible(p,focus,55)&&dist>4){const dir=focus.clone().sub(p).setY(0).normalize(),next=p.clone().addScaledVector(dir,dt*3.5);if(!world.blocked(next.x,next.z,.35,1)){p.copy(next);speed=3.5;o.root.rotation.y=Math.atan2(-dir.x,-dir.z);}}o.animate(dt,speed);o.root.visible=wanted>=3&&dist<100;}
-    if(wanted===0&&cars.length===0&&focus.distanceTo(new T.Vector3(3,0,134))<130)makeUnit(3,134,0);
+    if(wanted===0&&cars.length===0&&focus.distanceTo(new T.Vector3(3,0,134))<130&&policeSpawnClear(3,134,focus,playerHeading))makeUnit(3,134,0);
   }
   reset();
-  return {cars,officers,update,reset,offence,witnessed,forceWanted,onWantedChange,get wanted(){return wanted;},get seen(){return seen;},get siren(){return wanted>0?Math.max(0,...cars.map(c=>1-c.root.position.distanceTo(listener)/120)):0;},inspect:()=>({wanted,hidden,clock,seen,lastKnown:lastKnown.toArray(),roadblocks:cars.filter(c=>c.roadblock).length,officers:officers.filter(o=>o.root.visible).length,events:[...events],cars:cars.map(c=>({id:c.id,position:c.root.position.toArray(),speed:c.speed,heading:c.heading,roadblock:c.roadblock,unseen:c.unseen,flash:c.flash.map(m=>m.emissiveIntensity)}))})};
+  return {cars,officers,update,reset,offence,witnessed,forceWanted,onWantedChange,spawnTestUnit,get wanted(){return wanted;},get seen(){return seen;},get siren(){return wanted>0?Math.max(0,...cars.map(c=>1-c.root.position.distanceTo(listener)/120)):0;},inspect:()=>({wanted,hidden,clock,seen,lastKnown:lastKnown.toArray(),roadblocks:cars.filter(c=>c.roadblock).length,officers:officers.filter(o=>o.root.visible).length,events:[...events],cars:cars.map(c=>({id:c.id,position:c.root.position.toArray(),speed:c.speed,heading:c.heading,roadblock:c.roadblock,unseen:c.unseen,blockFor:c.blockFor,flash:c.flash.map(m=>m.emissiveIntensity)}))})};
 }

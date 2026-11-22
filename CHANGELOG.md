@@ -14,3 +14,18 @@
 - Browser gates: **0 console errors, 0 page errors, 0 non-file requests**.
 - `npx -y -p typescript tsc --noEmit`: **0 errors**. `node main.ts`: **exit 0 within 10 seconds** (tested with an isolated output directory).
 - Software rendering: ANGLE/Vulkan SwiftShader measured **0.43 FPS average** over the live decay observation. This is a headless software-rendering result, not a hardware-GPU performance claim.
+
+## 2026-11-22 — Bug B: police cannot pin the player
+
+- The player's heading is passed into every police update. A nearby cruiser accumulates blocking time only while the player's speed is below **0.5 m/s** and the player is not moving away; after **3 seconds**, that cruiser is despawned and removed from collision participation rather than pushed.
+- A police cruiser hit from the front yields with a lateral soft-push, allowing the player's throttle to keep producing forward motion instead of repeatedly reflecting or locking the player.
+- Pursuit and passive police spawns enforce the **15 m forward exclusion cone**. Roadblocks use two cruisers at lateral offsets of **−6 m and +6 m**, leaving a measured clear gap of **6.8 m**, above the required **4 m**; both roadblock spawn positions also pass the forward exclusion check.
+- Added deterministic `window.__vhTest.spawnPoliceAhead()` browser control and `screenshots/bugb-live.jpg` evidence; the new capture replaces `4-chase.jpg` to keep the dossier within its four-image limit.
+
+### Verification
+
+- `node --test tests/run.mjs`: **6/6 passed**, including **3/3 Bug A regressions**. The new Bug B scenario completed **50/50 deterministic iterations** with slightly different player positions and headings: a stationary cruiser spawned exactly **4 m** ahead, the player held forward for **2 simulation seconds**, the first contact pushed the cruiser sideways without a forward shove, and the player advanced more than **1 m** in every iteration. Separate regressions confirmed that **0.5 m/s** does not accumulate blocking time, a stopped player despawns a blocker just after **3 seconds**, the **15 m** spawn boundary is enforced, and the roadblock gap is **6.8 m**.
+- Direct Playwright Core 1.49.1 with cached Chromium 1148, `file://`, and a **1280×720** viewport: clicked **New Game**, entered the car, forced wanted level **5** through `window.__vhTest`, and spawned a cruiser exactly **4 m** ahead. Holding forward moved the player more than **1 m in 1.637 seconds** and **8.986 m over 3.574 seconds**. The original cruiser moved up to **2.240 m laterally**; maximum observed `blockFor` was **0 seconds**, so no unit held the player for more than **3 seconds**.
+- Browser gates: **0 console errors, 0 page errors, 0 non-file requests**. The unedited JPEG capture is **1280×720** and **165,094 bytes**.
+- `npx -y -p typescript tsc --noEmit`: **0 errors** on Node **v24.22.1**. `node main.ts`: **exit 0 in 0.515 seconds**, with a valid **783,054-byte dossier.json** in a clean isolated output directory after the screenshot replacement.
+- ANGLE/Mesa llvmpipe measured **2.238 FPS** over **8 frames / 3.574 seconds** during the live Bug B observation. This is a software-rendering measurement, not a hardware-GPU performance claim.

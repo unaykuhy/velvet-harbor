@@ -118,9 +118,27 @@ export function createVehicles(scene) {
     if(collides||other){
       car.heading=previousHeading;
       const force=Math.abs(car.speed);
-      if(force>5)car.damage=Math.min(100,car.damage+force*.45);
-      if(force>5||(other&&force>1))onImpact(force,other);
-      car.speed*=-.23;
+      let pushed=false;
+      // A cruiser yields like a soft obstacle instead of reflecting the player's throttle forever.
+      if(other?.police&&!collides&&force>.001){
+        const travel=next.clone().sub(old),distance=travel.length();
+        const lateral=new T.Vector3(Math.cos(car.heading),0,-Math.sin(car.heading));
+        const side=Math.sign(other.root.position.clone().sub(old).dot(lateral))||1;
+        const push=other.root.position.clone().addScaledVector(lateral,side*Math.max(.08,distance*1.35));
+        push.y=bridgeHeight(push.x,push.z)+.02;
+        const occupied=[...cars,...external].some(c=>c!==car&&c!==other&&carsOverlap(other,push,c,c.root.position,.05));
+        if(!occupied&&!world.blocked(push.x,push.z,1.1,push.y+.1)){
+          other.root.position.copy(push);other.speed=car.speed*.4;car.root.position.copy(next);car.speed*=Math.exp(-dt*1.8);pushed=true;
+        }
+      }
+      if(!pushed){
+        if(other?.police&&!collides)car.speed=0;
+        else{
+          if(force>5)car.damage=Math.min(100,car.damage+force*.45);
+          if(force>5||(other&&force>1))onImpact(force,other);
+          car.speed*=-.23;
+        }
+      }
     }else car.root.position.copy(next);
     car.root.position.y=bridgeHeight(car.root.position.x,car.root.position.z)+.02;
     car.root.rotation.set(0,car.heading,Math.max(-.025,Math.min(.025,-car.steer*car.speed*.003)));
