@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-23 — Milestone 4 pedestrian variety FIX: unique shirts, gender-gated pants, limb swing
+
+- **Unique shirts** (`game/src/peds.js`): deterministic Fisher-Yates permutation `SHIRT_COLOR_PERM` (LCG seed 0xC0FFEE) — independently verified by the coordinator: `[3,9,1,4,12,13,5,8,10,0,11,15,14,6,7,2]`, a true permutation of 0..15, **16/16 unique shirt colors** (fixes the (0,15), (5,10), (2,3), (4,11) duplicates).
+- **Gender-gated pants**: `MALE_PANTS_INDICES = [0..9]` — skirt/dress reachable only when `isFemale`; fixes men in dresses/skirts (peds 0, 1, 12).
+- **Limb swing**: `createBodyParts` now returns populated `limbs` (`limbs.push({leg, arm, side})`); `animate()` rotates them — pedestrians no longer glide.
+- Verification (coordinator, independent): tests **10/10**, `tsc` **0 errors**, `node main.ts` **exit 0** (dossier 778,674 B), Playwright close-ups **PASS** (peds 0/5/10 individually framed, **0/0/0 errors**). Screenshots `m4-peds-fixed-a2/b2/c2.jpg` (1280×720) in `velvet-harbor-preview/`; the fix session's own `m4-peds-fixed-a/b/c.jpg` show Mara alone and are NOT used as evidence. `makefun check` **5 passed, 0 failed**.
+
 ## 2026-11-23 — Milestone 3c FIX: first-person car interior (dashboard + windshield frame + A-pillars + mirror) and bottom-right glare fix
 
 - **Cockpit rebuild** (`game/src/vehicles.js`): full-cabin dark dashboard + matte cowl, two dim Art Deco trim lines (emissive 0.32), hooded gauge cluster behind the wheel with dim amber dials (emissive 0.5, was 0.95) and needles, small dim passenger indicator (the old bright right-hand glare source is removed), windshield frame (cowl base + body-coloured A-pillars + header), dark rearview mirror under the header, faint tinted windshield pane (opacity 0.07), and a hood/fender slab beyond the cowl.
