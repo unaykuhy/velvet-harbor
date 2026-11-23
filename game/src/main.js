@@ -53,7 +53,10 @@ function refreshViewVisibility(){
   if(activeCar?.interior)activeCar.interior.visible=first;
   for(const car of vehicles.cars)if(car!==activeCar&&car.interior)car.interior.visible=false;
   for(const car of police.cars)if(car.interior)car.interior.visible=false;
-  for(const car of traffic.cars)if(car.interior)car.interior.visible=false;
+  for(const car of traffic.cars)if(car!==activeCar&&car.interior)car.interior.visible=false;
+  // Bikes carry a seated rider only while being driven; parked bikes stay empty and
+  // first-person view hides the rider together with the outer shell.
+  for(const car of vehicles.cars)if(car.rider)car.rider.visible=car===activeCar?!first:!!car.ai;
   const hiddenHead=first&&!activeCar;
   for(const part of mara.headParts)part.visible=!hiddenHead;
 }
@@ -224,8 +227,9 @@ function updateBodyVisual(dt){
   if(!activeCar)return;
   if(activeCar.speed!==bodyLastSpeed){bodyAcceleration=(activeCar.speed-bodyLastSpeed)/FIXED_STEP;bodyLastSpeed=activeCar.speed;}
   const speedFactor=Math.min(1,Math.abs(activeCar.speed)/20);
-  const targetRoll=T.MathUtils.clamp(-activeCar.steer*speedFactor*.055,-.055,.055);
-  const targetPitch=T.MathUtils.clamp(-bodyAcceleration*.0025,-.035,.035);
+  const motorcycle=activeCar.model.kind==='sportbike'||activeCar.model.kind==='classic-bike';
+  const targetRoll=motorcycle?T.MathUtils.clamp(-activeCar.steer*activeCar.speed*.018,-.48,.48):T.MathUtils.clamp(-activeCar.steer*speedFactor*.055,-.055,.055);
+  const targetPitch=T.MathUtils.clamp(-bodyAcceleration*.0025,motorcycle?-.018:-.035,motorcycle?.018:.035);
   activeCar.root.rotation.z=T.MathUtils.damp(activeCar.root.rotation.z,targetRoll,8,dt);
   activeCar.root.rotation.x=T.MathUtils.damp(activeCar.root.rotation.x,targetPitch,8,dt);
 }

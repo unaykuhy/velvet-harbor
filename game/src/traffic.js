@@ -31,12 +31,12 @@ export function createTraffic(scene,vehicles) {
   // The last route crosses the harbor bridge so AI traffic shares the span with the player.
   const routes=[[0,80,80,240],[0,80,80,160],[0,80,160,240],[-160,-80,80,160],[80,160,80,160],[160,240,160,240],[-80,0,80,160],[0,80,-160,0],[-240,-160,-160,0],[80,160,-160,0],[160,240,0,80],[-160,-80,160,240],[240,380,-80,-80]];
   routes.forEach(([left,right,top,bottom],i)=>{
-    const car=buildCar({...vehicleModels[(i+2)%5],color:['#f0c287','#6b9b99','#bf7770','#e4dfc5'][i%4]});
-    car.id=`traffic-${i}`;car.ai=true;car.route=[[left+3,bottom-3],[left+3,top+3],[right-3,top+3],[right-3,bottom-3]];
+    const car=buildCar({...vehicleModels[(i+2)%8],color:['#f0c287','#6b9b99','#bf7770','#e4dfc5'][i%4]});
+    car.id=`traffic-${i}`;car.ai=true;if(car.rider)car.rider.visible=true;car.route=[[left+3,bottom-3],[left+3,top+3],[right-3,top+3],[right-3,bottom-3]];
     car.startEdge=i%4;car.startFraction=.2+(i%3)*.22;car.cruise=9+i%4;car.waiting='';car.target=0;
     scene.add(car.root);cars.push(car);vehicles.cars.push(car);
   });
-  function reset(){clock=0;redStops=0;redViolations=0;for(const c of cars){const edge=c.startEdge,a=c.route[edge],b=c.route[(edge+1)%4];c.root.position.set(a[0]+(b[0]-a[0])*c.startFraction,.02,a[1]+(b[1]-a[1])*c.startFraction);c.target=(edge+1)%4;c.heading=Math.atan2(-(b[0]-a[0]),-(b[1]-a[1]));c.speed=0;c.ai=true;c.waiting='';c.root.rotation.y=c.heading;c.owned=false;}}
+  function reset(){clock=0;redStops=0;redViolations=0;for(const c of cars){const edge=c.startEdge,a=c.route[edge],b=c.route[(edge+1)%4];c.root.position.set(a[0]+(b[0]-a[0])*c.startFraction,.02,a[1]+(b[1]-a[1])*c.startFraction);c.target=(edge+1)%4;c.heading=Math.atan2(-(b[0]-a[0]),-(b[1]-a[1]));c.speed=0;c.ai=true;c.waiting='';c.root.rotation.y=c.heading;if(c.rider)c.rider.visible=true;c.owned=false;}}
   function stopDistance(car){
     const p=car.root.position,fx=-Math.sin(car.heading),fz=-Math.cos(car.heading),axis=Math.abs(fz)>.7?'NS':'EW';
     let distance=Infinity;

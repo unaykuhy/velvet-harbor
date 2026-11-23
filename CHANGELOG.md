@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-23 — Milestone 3: three new vehicles (Marlowe Viceroy, Kestrel Dart, Briar Heritage) + rider readability fix
+
+- **Three new vehicles** (`game/src/vehicles.js`, `traffic.js`, `main.js`): Marlowe Viceroy (vintage luxury saloon, 5.3 m, power 11, top 41, `#d8bd7f`), Kestrel Dart (sports motorcycle, 2.2 m, power 17, top 52, `#4f78a8`), Briar Heritage (classic motorcycle, 2.3 m, power 12, top 38, `#7f4f45`). 8 models, 18 parked positions (`index%8`); traffic picks from all 8. Motorcycles mount/dismount with KeyE like cars (dismount refused above 3 m/s), lean into corners (roll limit 0.48 rad), rider visible (child of `shell`, shown for the active vehicle / AI riders).
+- **Rider readability micro-fix** (`game/src/vehicles.js:87`, one line): Dart jacket `#4a7c9e` → cream `#e8dcc8` — the blue jacket blended into the blue bike paint; the cream torso now reads clearly against the bike and the dark road (proven in the new Dart driving shot).
+- **Build history**: Kimi build session died after ~63 min on provider capacity exhaustion with the code ~complete (tests 10/10 in its run); Nemotron finish completed it; Nemotron rider-fix brightened rider colours; Nemotron micro-fix changed the one jacket line.
+- **Screenshot retake (user finding 14:36 WITA)**: the old `m3-vehicle-viceroy.jpg` showed no Viceroy (Mara on foot + "Take Vortex Stiletto") because the finish script never verified the mount. Coordinator retook all three with assert-before-every-shot scripts (parked hint "Take \<Name\>", mount bay-5/6/7, driving label "\<NAME\> · KM/H"); all asserts pass, 0/0/0 errors. New shots: `m3-vehicle-viceroy.jpg` + `-parked`, `m3-vehicle-heritage.jpg` + `-parked`, `m3-vehicle-dart.jpg` + `-parked` (1280×720, `velvet-harbor-preview/`).
+- Verification: tests **10/10**, `tsc` **0 errors**, `node main.ts` **exit 0** (dossier 793,727 B, fresh dir, 4 screenshots), `makefun check` **5 passed, 0 failed**. Bundle 614,015 B, sha256 `12fec187…` (`e8dcc8` ×1, `4a7c9e` ×0). NOTE: the bundle also contains the in-progress sidewalk work in `game/src/world.js`, which is not part of this commit and is committed separately after its fix session. Full numbers in QA.md (Milestone 3 three-new-vehicles section).
+
 ## 2026-11-23 — Milestone 4 pedestrian variety FIX: unique shirts, gender-gated pants, limb swing
 
 - **Unique shirts** (`game/src/peds.js`): deterministic Fisher-Yates permutation `SHIRT_COLOR_PERM` (LCG seed 0xC0FFEE) — independently verified by the coordinator: `[3,9,1,4,12,13,5,8,10,0,11,15,14,6,7,2]`, a true permutation of 0..15, **16/16 unique shirt colors** (fixes the (0,15), (5,10), (2,3), (4,11) duplicates).

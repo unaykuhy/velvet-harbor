@@ -9,7 +9,12 @@ export const vehicleModels = [
   {name:'Calyx Zephyr',length:4.1,width:1.8,height:1.15,color:'#e2d6b4',power:12,top:39,roof:.7,kind:'hatch'},
   {name:'Orison Meridian',length:5.45,width:2,height:1.25,color:'#435b7c',power:11,top:43,roof:.8,kind:'saloon'},
   {name:'Serein Drift',length:4.5,width:1.9,height:.95,color:'#bf6f6d',power:16,top:49,roof:.4,kind:'roadster'},
+  {name:'Marlowe Viceroy',length:5.3,width:2.04,height:1.15,color:'#d8bd7f',power:11,top:41,roof:1,kind:'vintage'},
+  {name:'Kestrel Dart',length:2.2,width:.8,height:1.1,color:'#6a9bc4',power:17,top:52,roof:0,kind:'sportbike'},
+  {name:'Briar Heritage',length:2.3,width:.85,height:1.12,color:'#a67c6e',power:12,top:38,roof:0,kind:'classic-bike'},
 ];
+
+function isMotorcycle(model){return model.kind==='sportbike'||model.kind==='classic-bike';}
 
 function extrudedProfile(points,width,material) {
   const shape=new T.Shape();points.forEach(([z,y],i)=>i?shape.lineTo(z,y):shape.moveTo(z,y));shape.closePath();
@@ -18,12 +23,114 @@ function extrudedProfile(points,width,material) {
   return new T.Mesh(geometry,material);
 }
 
+function buildBike(model) {
+  const sport=model.kind==='sportbike';
+  const root=new T.Group(),shell=new T.Group(),interior=new T.Group();root.add(shell,interior);
+  const paint=standard(model.color,.24,.58),chrome=standard('#d2d9d8',.2,.88),rubber=standard('#131c22',.94);
+  const black=standard('#17242b',.62,.25),leather=standard(sport?'#202a31':'#643d2c',.82,.05),glass=surfaceMaterial({color:'#789eb5',transparent:true,opacity:.48,roughness:.1,metalness:.22,depthWrite:false});
+  const l=model.length/2,wheelRadius=sport?.34:.36,frontZ=-l*.68,rearZ=l*.68;
+  const wheels=[],frontWheels=[];
+  function mesh(geometry,material,parent=root){const m=new T.Mesh(geometry,material);parent.add(m);return m;}
+  function box(x,y,z,a,b,c,material,parent=root){const m=mesh(new T.BoxGeometry(a,b,c),material,parent);m.position.set(x,y,z);return m;}
+  function rod(a,b,r,material,parent=root){
+    const start=new T.Vector3(...a),end=new T.Vector3(...b),direction=end.clone().sub(start);
+    const m=mesh(new T.CylinderGeometry(r,r,direction.length(),10),material,parent);m.position.copy(start).add(end).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction.normalize());return m;
+  }
+  // A triangulated cradle, finned engine and sculpted tank give both bikes a complete mechanical silhouette.
+  for(const x of [-.13,.13]){
+    rod([x,.4,rearZ],[x,.76,.18],.038,chrome);rod([x,.76,.18],[x,.48,frontZ+.2],.038,chrome);rod([x,.48,frontZ+.2],[x,.4,rearZ],.032,black);
+  }
+  box(0,.57,.03,.42,.38,.5,black);
+  for(let i=0;i<7;i++)box(0,.45+i*.043,-.04,.49,.022,.43,chrome);
+  const tank=mesh(new T.SphereGeometry(1,24,14),paint);tank.position.set(0,sport?.91:.96,-.19);tank.scale.set(sport?.28:.32,sport?.22:.23,sport?.43:.37);
+  const tankStripe=box(0,sport?1.105:1.17,-.2,.055,.018,.48,chrome);tankStripe.rotation.x=-.08;
+  const saddle=mesh(new T.SphereGeometry(1,20,12),leather);saddle.position.set(0,sport?.88:.93,.39);saddle.scale.set(sport?.23:.29,.085,sport?.48:.45);
+  if(!sport){const rearSeat=mesh(new T.SphereGeometry(1,18,10),leather);rearSeat.position.set(0,.96,.72);rearSeat.scale.set(.27,.075,.22);}
+  if(sport){
+    root.add(extrudedProfile([[-l,.63],[-l+.04,.94],[-l+.22,1.13],[-.48,1.13],[-.25,.86],[-.37,.58]],.57,paint));
+    root.add(extrudedProfile([[-.91,1.08],[-.72,1.35],[-.49,1.3],[-.45,1.08]],.43,glass));
+    const tail=mesh(new T.SphereGeometry(1,16,10),paint);tail.position.set(0,.82,.86);tail.scale.set(.19,.12,.35);
+    for(const x of [-.29,.29])rod([x,.7,.45],[x,.62,.94],.035,chrome);
+  }else{
+    // Chrome valanced mudguards, broad saddle and upright metal trim define the Heritage.
+    const rearFender=mesh(new T.TorusGeometry(wheelRadius+.055,.055,8,28,Math.PI),chrome);rearFender.rotation.y=Math.PI/2;rearFender.position.set(0,wheelRadius+.02,rearZ);
+    box(0,.83,.74,.48,.055,.42,paint);
+    for(const x of [-.31,.31])rod([x,.59,.28],[x,.59,.8],.025,chrome);
+    rod([-.18,.55,.5],[-.31,.48,-.32],.055,chrome);rod([-.31,.48,-.32],[-.31,.5,.91],.065,chrome);
+  }
+  for(const z of [frontZ,rearZ]){
+    const pivot=new T.Group();pivot.position.set(0,wheelRadius+.02,z);shell.add(pivot);
+    const spin=new T.Group();pivot.add(spin);
+    const tire=mesh(new T.CylinderGeometry(wheelRadius,wheelRadius,sport?.13:.16,28),rubber,spin);tire.rotation.z=Math.PI/2;
+    const rim=mesh(new T.CylinderGeometry(wheelRadius*.61,wheelRadius*.61,sport?.137:.166,24),black,spin);rim.rotation.z=Math.PI/2;
+    const hub=mesh(new T.CylinderGeometry(.065,.065,.21,16),chrome,spin);hub.rotation.z=Math.PI/2;
+    for(let i=0;i<10;i++){const a=i*Math.PI/5;rod([0,0,0],[0,Math.cos(a)*wheelRadius*.57,Math.sin(a)*wheelRadius*.57],.012,chrome,spin);}
+    const disc=mesh(new T.CylinderGeometry(wheelRadius*.38,wheelRadius*.38,.178,20),chrome,spin);disc.rotation.z=Math.PI/2;
+    wheels.push(spin);if(z===frontZ)frontWheels.push(pivot);
+  }
+  const front=frontWheels[0],forkTop=sport?.72:.78;
+  for(const x of [-.115,.115]){
+    rod([x,0,0],[x,forkTop,.17],.032,chrome,front);rod([x,.08,.01],[x,forkTop-.08,.15],.048,black,front);
+  }
+  rod([-.34,forkTop,.17],[.34,forkTop,.17],.026,chrome,front);
+  for(const x of [-.36,.36])rod([Math.sign(x)*.25,forkTop,.17],[x,forkTop,.17],.042,black,front);
+  const frontFender=mesh(new T.TorusGeometry(wheelRadius+.05,.045,8,28,Math.PI),sport?paint:chrome,front);frontFender.rotation.y=Math.PI/2;
+  const headlight=surfaceMaterial({color:'#fff1cf',emissive:'#ffe6ad',emissiveIntensity:1.35});
+  const lamp=mesh(new T.SphereGeometry(1,18,12),headlight,front);lamp.position.set(0,forkTop-.1,-.12);lamp.scale.set(sport?.14:.17,sport?.11:.17,.07);
+  if(!sport)for(const x of [-.34,.34]){
+    rod([x,forkTop,.17],[x*1.08,forkTop+.25,.18],.014,chrome,front);
+    const mirror=mesh(new T.SphereGeometry(1,14,10),chrome,front);mirror.position.set(x*1.08,forkTop+.26,.18);mirror.scale.set(.09,.065,.025);
+  }
+  const tail=surfaceMaterial({color:'#ef6558',emissive:'#ff392c',emissiveIntensity:.8});box(0,.75,l-.02,.2,.09,.055,tail);
+  // The rider is part of the vehicle, shown only for AI or the active chase view.
+  const rider=new T.Group();shell.add(rider);rider.visible=false;
+  const jacket=standard(sport?'#e8dcc8':'#d4c4a8',.76),denim=standard(sport?'#3a5a7a':'#8b7d6b',.9),boots=standard(sport?'#2a3a4a':'#6b5b4a',.82),helmet=standard(sport?'#d5dce2':'#e8dcc8',.3,.38);
+  function riderMesh(geometry,material){return mesh(geometry,material,rider);}
+  function riderRod(a,b,r,material){return rod(a,b,r,material,rider);}
+  const lean=sport?-.58:-.08,hipZ=sport?.35:.39,shoulderZ=sport?.02:.31;
+  const torso=riderMesh(new T.CapsuleGeometry(.18,.4,5,12),jacket);torso.position.set(0,sport?1.23:1.3,sport?.22:.35);torso.rotation.x=lean;
+  const headPosition=[0,sport?1.57:1.69,sport?-.08:.27];
+  const head=riderMesh(new T.SphereGeometry(.165,20,14),helmet);head.position.set(...headPosition);
+  const visor=riderMesh(new T.SphereGeometry(1,16,10),black);visor.position.set(headPosition[0],headPosition[1]+.015,headPosition[2]-.135);visor.scale.set(.135,.072,.04);
+  for(const side of [-1,1]){
+    const shoulder=[side*.17,sport?1.39:1.47,shoulderZ],elbow=[side*.29,sport?1.2:1.25,-.2],hand=[side*.34,wheelRadius+.02+forkTop,frontZ+.17];
+    riderRod(shoulder,elbow,.065,jacket);riderRod(elbow,hand,.052,jacket);
+    const glove=riderMesh(new T.SphereGeometry(.06,12,8),boots);glove.position.set(...hand);
+    const hip=[side*.13,.94,hipZ],knee=[side*.25,.66,sport?.02:.12],foot=[side*.23,.48,.35];
+    riderRod(hip,knee,.083,denim);riderRod(knee,foot,.065,denim);
+    const boot=riderMesh(new T.SphereGeometry(1,12,8),boots);boot.position.set(...foot);boot.scale.set(.075,.065,.14);
+  }
+  // Static painted/chrome parts are batched without merging the steering or wheel pivots.
+  const staticParts=new Map();root.updateMatrixWorld(true);
+  for(const child of [...root.children])if(child.isMesh){
+    if(!staticParts.has(child.material))staticParts.set(child.material,[]);
+    const geometry=child.geometry.clone().applyMatrix4(child.matrix);staticParts.get(child.material).push(geometry.index?geometry.toNonIndexed():geometry);root.remove(child);
+  }
+  for(const [material,geometries] of staticParts){shell.add(new T.Mesh(mergeGeometries(geometries),material));geometries.forEach(g=>g.dispose());}
+  // In first person the shell is hidden, while these compact bars and instruments remain.
+  const steeringWheel=new T.Group();steeringWheel.position.set(0,wheelRadius+.02+forkTop,frontZ+.17);interior.add(steeringWheel);
+  rod([-.34,0,0],[.34,0,0],.027,chrome,steeringWheel);
+  for(const x of [-.34,.34])rod([x*.7,0,0],[x,0,0],.043,black,steeringWheel);
+  const gauge=mesh(new T.CylinderGeometry(.105,.105,.045,20),black,steeringWheel);gauge.rotation.x=Math.PI/2;gauge.position.set(0,.09,.035);
+  const gaugeRing=mesh(new T.TorusGeometry(.105,.012,8,20),chrome,steeringWheel);gaugeRing.position.set(0,.09,.06);
+  const gaugeFace=surfaceMaterial({color:'#352718',emissive:'#d89a52',emissiveIntensity:.35});
+  const dial=mesh(new T.CircleGeometry(.088,20),gaugeFace,steeringWheel);dial.position.set(0,.09,.061);
+  rod([0,.09,.066],[.045,.135,.066],.008,chrome,steeringWheel);
+  interior.visible=false;
+  const beam=new T.SpotLight('#ffe8b3',0,35,.6,.65,1.5);beam.position.set(0,1,frontZ);beam.target.position.set(0,0,-20);
+  const smoke=new T.Group();root.add(smoke);const smokeMaterial=new T.MeshBasicMaterial({color:'#596264',transparent:true,opacity:.25,depthWrite:false});
+  for(let i=0;i<7;i++){const puff=new T.Mesh(new T.IcosahedronGeometry(.3,1),smokeMaterial);puff.visible=false;smoke.add(puff);}
+  root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  return {root,shell,interior,rider,steeringWheel,driverEye:new T.Vector3(0,sport?1.46:1.53,.18),wheels,frontWheels,beam,smoke,paint,model,speed:0,steer:0,heading:0,damage:0,owned:false};
+}
+
 export function buildCar(model) {
+  if(isMotorcycle(model))return buildBike(model);
   const root=new T.Group();const paint=standard(model.color,.26,.5),glass=standard('#668b98',.12,.6),chrome=standard('#c1cacc',.23,.83);
   const rubber=standard('#17232a',.91),black=standard('#1b3037',.55),seat=standard('#b48c68',.9);
   const shell=new T.Group(),interior=new T.Group();root.add(shell,interior);
-  const l=model.length/2,w=model.width,h=model.height;
-  const body=extrudedProfile([[-l,.55],[-l+.15,h*.85],[-l+.7,h],[-.7,h+.07],[.3,h],[l-.4,h*.8],[l,.67],[l-.1,.42],[-l+.2,.42]],w,paint);
+  const l=model.length/2,w=model.width,h=model.height,vintage=model.kind==='vintage';
+  const body=extrudedProfile(vintage?[[-l,.55],[-l+.08,.82],[-l+.35,h],[-.82,h+.04],[-.55,h],[1.75,h],[l-.12,.88],[l,.58],[l-.1,.42],[-l+.2,.42]]:[[-l,.55],[-l+.15,h*.85],[-l+.7,h],[-.7,h+.07],[.3,h],[l-.4,h*.8],[l,.67],[l-.1,.42],[-l+.2,.42]],w,paint);
   const surface=body.geometry.attributes.position;
   for(let i=0;i<surface.count;i++){
     const z=surface.getZ(i),y=surface.getY(i);
@@ -36,7 +143,22 @@ export function buildCar(model) {
     const mesh=new T.Mesh(new T.BoxGeometry(a,b,c),material);mesh.position.set(x,y,z);root.add(mesh);return mesh;
   }
   const roofHeight=h+model.roof;
-  if(model.kind==='utility') {
+  if(vintage){
+    // A tall, formal cabin sits behind the long bonnet; rounded wing fenders and
+    // polished running boards give the Viceroy its pre-war luxury silhouette.
+    root.add(extrudedProfile([[-1.18,h],[-.72,roofHeight-.08],[-.42,roofHeight],[1.03,roofHeight],[1.58,h]],w*.82,glass));
+    part(0,roofHeight+.025,.3,w*.88,.13,2.05,paint);
+    for(const x of [-w*.43,w*.43]){
+      part(x,h+model.roof*.48,-.69,.09,model.roof*.9,.12,chrome);
+      part(x,h+model.roof*.48,1.08,.09,model.roof*.9,.12,chrome);
+      part(x,h+.1,.22,.035,.055,2.55,chrome);
+      part(Math.sign(x)*(w*.52),.4,.2,.2,.09,2.45,chrome);
+    }
+    for(const x of [-w*.46,w*.46])for(const z of [-l*.65,l*.65]){
+      const fender=new T.Mesh(new T.SphereGeometry(1,20,12),paint);fender.position.set(x,.58,z);fender.scale.set(.34,.3,.82);root.add(fender);
+      const trim=new T.Mesh(new T.TorusGeometry(.43,.025,8,24,Math.PI),chrome);trim.rotation.y=Math.PI/2;trim.position.set(x,.47,z);root.add(trim);
+    }
+  } else if(model.kind==='utility') {
     root.add(extrudedProfile([[-1.1,h],[-.8,roofHeight],[1.55,roofHeight],[1.8,h]],w*.85,glass));
     part(0,roofHeight+.04,.3,w*.91,.13,2.8,paint);
     part(0,h+.32,1.6,w*.88,.6,.14,paint);
@@ -51,14 +173,17 @@ export function buildCar(model) {
     for(const x of [-w*.438,w*.438])part(x,h+model.roof/2,.18,.08,model.roof,.11,paint);
   }
   // Recessed grille, split light signatures, door seams and polished trim.
-  part(0,.65,-l-.065,w*.65,.22,.08,black);
-  for(let x=-w*.28;x<w*.32;x+=.12)part(x,.65,-l-.11,.025,.14,.02,chrome);
+  part(0,vintage?.8:.65,-l-.065,w*(vintage?.52:.65),vintage?.5:.22,.08,black);
+  for(let x=-w*.28;x<w*.32;x+=vintage?.09:.12)part(x,vintage?.8:.65,-l-.11,.025,vintage?.42:.14,.02,chrome);
   part(0,.46,-l,w*.88,.09,.14,chrome);part(0,.46,l,w*.86,.09,.13,chrome);
+  if(vintage){part(0,1.07,-l-.09,w*.58,.045,.05,chrome);part(0,.55,-l-.09,w*.58,.045,.05,chrome);}
    const headlight=surfaceMaterial({color:'#fff4d2',emissive:'#fff1c0',emissiveIntensity:1.4});
   const tail=surfaceMaterial({color:'#f56356',emissive:'#ff382e',emissiveIntensity:.8});
   for(const x of [-w*.35,w*.35]) {
-    part(x,h*.78,-l-.07,w*.2,.13,.07,headlight);part(x,.79,l+.06,w*.25,.12,.07,tail);
-    part(x*1.45,h+.12,-.6,.23,.13,.32,paint);
+    if(vintage){const lamp=new T.Mesh(new T.SphereGeometry(1,18,12),headlight);lamp.position.set(x,.94,-l-.08);lamp.scale.set(.16,.16,.08);root.add(lamp);}
+    else part(x,h*.78,-l-.07,w*.2,.13,.07,headlight);
+    part(x,.79,l+.06,w*.25,.12,.07,tail);
+    if(!vintage)part(x*1.45,h+.12,-.6,.23,.13,.32,paint);
     part(Math.sign(x)*(w/2+.09),h*.8,.25,.03,.045,.22,chrome);
   }
   const wheels=[],frontWheels=[];
@@ -150,9 +275,9 @@ export function buildCar(model) {
 export function createVehicles(scene) {
   const cars=[];
   const external=[];
-  const positions=[[5,149,0],[-6,116,0],[86,181,Math.PI],[153,92,0],[-74,195,Math.PI/2],[6,-35,0],[-86,-108,Math.PI],[166,-186,0],[-153,-50,Math.PI],[231,138,0],[-230,74,Math.PI],[-35,233,Math.PI/2],[111,7,Math.PI/2],[75,-234,Math.PI/2],[6,59,0]];
+  const positions=[[5,149,0],[-6,116,0],[86,181,Math.PI],[153,92,0],[-74,195,Math.PI/2],[6,-35,0],[-86,-108,Math.PI],[166,-186,0],[-153,-50,Math.PI],[231,138,0],[-230,74,Math.PI],[-35,233,Math.PI/2],[111,7,Math.PI/2],[75,-234,Math.PI/2],[6,59,0],[5,174,0],[-6,139,0],[153,116,Math.PI]];
   positions.forEach(([x,z,heading],index)=>{
-    const car=buildCar(vehicleModels[index%5]);car.id=`bay-${index}`;car.root.position.set(x,.02,z);car.heading=heading;car.root.rotation.y=heading;scene.add(car.root);cars.push(car);
+    const car=buildCar(vehicleModels[index%8]);car.id=`bay-${index}`;car.root.position.set(x,.02,z);car.heading=heading;car.root.rotation.y=heading;scene.add(car.root);cars.push(car);
   });
   function nearest(position) {return cars.filter(car=>Math.abs(car.speed)<1&&car.root.position.distanceTo(position)<4.6).sort((a,b)=>a.root.position.distanceToSquared(position)-b.root.position.distanceToSquared(position))[0];}
   function drive(car,dt,input,world,onImpact) {
@@ -201,10 +326,11 @@ export function createVehicles(scene) {
       }
     }else car.root.position.copy(next);
     car.root.position.y=bridgeHeight(car.root.position.x,car.root.position.z)+.02;
-    car.root.rotation.set(0,car.heading,Math.max(-.025,Math.min(.025,-car.steer*car.speed*.003)));
+    const motorcycle=isMotorcycle(car.model),rollLimit=motorcycle?.48:.025,rollScale=motorcycle?.018:.003;
+    car.root.rotation.set(0,car.heading,T.MathUtils.clamp(-car.steer*car.speed*rollScale,-rollLimit,rollLimit));
     car.wheels.forEach(w=>w.rotation.x-=car.speed*dt/.4);
     car.frontWheels.forEach(w=>w.rotation.y=car.steer);
-    car.steeringWheel.rotation.z=-car.steer*3.2;
+    if(motorcycle)car.steeringWheel.rotation.y=car.steer;else car.steeringWheel.rotation.z=-car.steer*3.2;
     car.paint.color.set(car.model.color).multiplyScalar(1-car.damage*.003);
   }
   const headlight=new T.SpotLight('#ffe8b3',0,38,.65,.7,1.5);scene.add(headlight,headlight.target);
@@ -245,8 +371,13 @@ export function carsOverlap(a,pa,b,pb,padding=0) {
 }
 
 export function animateAICar(car,dt) {
+  const turn=Math.atan2(Math.sin(car.heading-car.root.rotation.y),Math.cos(car.heading-car.root.rotation.y));
   car.root.rotation.y=car.heading;
+  if(isMotorcycle(car.model)){
+    const target=T.MathUtils.clamp(-turn*Math.abs(car.speed)*.12,-.42,.42);
+    car.root.rotation.z=T.MathUtils.damp(car.root.rotation.z,target,7,dt);
+  }
   for(const wheel of car.wheels)wheel.rotation.x-=car.speed*dt/.4;
   for(const wheel of car.frontWheels)wheel.rotation.y=car.steer||0;
-  car.steeringWheel.rotation.z=-(car.steer||0)*3.2;
+  if(isMotorcycle(car.model))car.steeringWheel.rotation.y=car.steer||0;else car.steeringWheel.rotation.z=-(car.steer||0)*3.2;
 }
