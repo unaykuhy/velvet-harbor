@@ -3,6 +3,7 @@ import {avenues,bridgeHeight} from './world.js';
 import {buildCar,vehicleModels,carsOverlap,animateAICar} from './vehicles.js';
 import {standard,surfaceMaterial} from './render.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {createBus} from './bus.js';
 
 export function createTraffic(scene,vehicles) {
   let clock=0,redStops=0,redViolations=0;
@@ -36,6 +37,7 @@ export function createTraffic(scene,vehicles) {
     car.startEdge=i%4;car.startFraction=.2+(i%3)*.22;car.cruise=9+i%4;car.waiting='';car.target=0;
     scene.add(car.root);cars.push(car);vehicles.cars.push(car);
   });
+  const {bus,update:busUpdate}=createBus(scene,vehicles,{lights,phase});
   function reset(){clock=0;redStops=0;redViolations=0;for(const c of cars){const edge=c.startEdge,a=c.route[edge],b=c.route[(edge+1)%4];c.root.position.set(a[0]+(b[0]-a[0])*c.startFraction,.02,a[1]+(b[1]-a[1])*c.startFraction);c.target=(edge+1)%4;c.heading=Math.atan2(-(b[0]-a[0]),-(b[1]-a[1]));c.speed=0;c.ai=true;c.waiting='';c.root.rotation.y=c.heading;if(c.rider)c.rider.visible=true;c.owned=false;}}
   function stopDistance(car){
     const p=car.root.position,fx=-Math.sin(car.heading),fz=-Math.cos(car.heading),axis=Math.abs(fz)>.7?'NS':'EW';
@@ -70,6 +72,7 @@ export function createTraffic(scene,vehicles) {
       // AI cars follow the bridge grade so they ride the deck instead of clipping through it.
       car.root.position.y=bridgeHeight(car.root.position.x,car.root.position.z)+.02;
     }
+    busUpdate(dt,active,focus,pedestrians);
   }
   function checkRedCrossing(car,previous){
     const p=car.root.position,fx=-Math.sin(car.heading),fz=-Math.cos(car.heading),axis=Math.abs(fz)>.7?'NS':'EW';
@@ -78,5 +81,5 @@ export function createTraffic(scene,vehicles) {
     }return false;
   }
   reset();
-  return {cars,lights,update,reset,phase,checkRedCrossing,get clock(){return clock;},inspect:()=>({clock,NS:phase('NS'),EW:phase('EW'),redStops,redViolations,intersections:lights.length,cars:cars.map(c=>({id:c.id,position:c.root.position.toArray(),speed:c.speed,heading:c.heading,waiting:c.waiting,ai:c.ai}))})};
+  return {cars,lights,update,reset,phase,checkRedCrossing,get clock(){return clock;},inspect:()=>({clock,NS:phase('NS'),EW:phase('EW'),redStops,redViolations,intersections:lights.length,cars:cars.map(c=>({id:c.id,position:c.root.position.toArray(),speed:c.speed,heading:c.heading,waiting:c.waiting,ai:c.ai})),bus:()=>({id:bus.id,position:bus.root.position.toArray(),speed:bus.speed,heading:bus.heading,waiting:bus.waiting,passengers:bus.passengers,target:bus.target,dwellTimer:bus.dwellTimer})})};
 }

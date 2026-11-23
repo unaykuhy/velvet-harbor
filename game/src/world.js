@@ -645,6 +645,309 @@ export function createCity(scene, mat) {
   }
   // Distant headlands make the sea read as a bay.
   for(let i=0;i<16;i++)bake(new T.ConeGeometry(70+random()*65,50+random()*95,9),standard('#73968b'),-650+i*110,8,-620-random()*100);
+
+  // ── MILESTONE 7 — EXTRAS ──
+  // 1. MONORAIL (Prism Heights): elevated loop on slim pylons, 1 car with lit windows
+  const monorail = { pylons: [], track: null, car: null, carGroup: new T.Group(), progress: 0, loopLength: 0 };
+  const monoPath = [
+    {x: -80, z: -80}, {x: 80, z: -80}, {x: 80, z: 80}, {x: -80, z: 80}, {x: -80, z: -80}
+  ];
+  // Build pylons every 16 units along the rectangular loop
+  for (let i = 0; i < monoPath.length - 1; i++) {
+    const p0 = monoPath[i], p1 = monoPath[i + 1];
+    const dx = p1.x - p0.x, dz = p1.z - p0.z;
+    const segLen = Math.hypot(dx, dz);
+    const steps = Math.ceil(segLen / 16);
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const px = p0.x + dx * t;
+      const pz = p0.z + dz * t;
+      // Slim pylon: tapered cylinder
+      cylinder(px, 6, pz, 0.35, 0.55, 12, mat.steel, 8);
+      solid(px, pz, 0.7, 0.7, 12);
+      monorail.pylons.push({ x: px, z: pz });
+    }
+  }
+  // Track beams (two parallel box beams)
+  for (let i = 0; i < monoPath.length - 1; i++) {
+    const p0 = monoPath[i], p1 = monoPath[i + 1];
+    const dx = p1.x - p0.x, dz = p1.z - p0.z;
+    const len = Math.hypot(dx, dz);
+    const angle = Math.atan2(dx, dz);
+    monorail.loopLength += len;
+    for (const side of [-1, 1]) {
+      const bx = (p0.x + p1.x) / 2 + Math.sin(angle) * side * 1.8;
+      const bz = (p0.z + p1.z) / 2 + Math.cos(angle) * side * 1.8;
+      const beam = new T.Mesh(new T.BoxGeometry(0.6, 0.4, len), mat.steel);
+      beam.position.set(bx, 12.2, bz);
+      beam.rotation.y = angle;
+      beam.castShadow = true;
+      scene.add(beam);
+    }
+  }
+  // Monorail car (Art Deco, lit windows)
+  monorail.carGroup.position.set(monoPath[0].x, 12.8, monoPath[0].z);
+  const carBody = new T.Mesh(new T.BoxGeometry(3.2, 2.6, 10), mat.steel);
+  carBody.position.y = 0; carBody.castShadow = true; monorail.carGroup.add(carBody);
+  // Nose cone
+  const nose = new T.Mesh(new T.ConeGeometry(1.6, 2.6, 4), mat.steel);
+  nose.position.set(0, 0, -6.3); nose.rotation.x = Math.PI / 2; nose.castShadow = true; monorail.carGroup.add(nose);
+  const nose2 = new T.Mesh(new T.ConeGeometry(1.6, 2.6, 4), mat.steel);
+  nose2.position.set(0, 0, 6.3); nose2.rotation.x = -Math.PI / 2; nose2.castShadow = true; monorail.carGroup.add(nose2);
+  // Window strip (emissive)
+  const windowGeo = new T.BoxGeometry(2.8, 1.4, 9.2);
+  const windowMatMono = standard('#fff8e7', 0.1, 1.0); windowMatMono.emissive = new T.Color('#fff8e7'); windowMatMono.emissiveIntensity = 1.2;
+  const windows = new T.Mesh(windowGeo, windowMatMono);
+  windows.position.y = 0.2; windows.castShadow = true; monorail.carGroup.add(windows);
+  // Roof trim
+  const roofTrim = new T.Mesh(new T.BoxGeometry(3.4, 0.2, 10.4), mat.trim);
+  roofTrim.position.set(0, 1.5, 0); monorail.carGroup.add(roofTrim);
+  // Running lights
+  for (const sz of [-5, 5]) {
+    const light = new T.Mesh(new T.SphereGeometry(0.15, 8, 6), mat.lamp);
+    light.position.set(1.7, 0.5, sz); monorail.carGroup.add(light);
+    const light2 = light.clone(); light2.position.set(-1.7, 0.5, sz); monorail.carGroup.add(light2);
+  }
+  scene.add(monorail.carGroup);
+  monorail.car = monorail.carGroup;
+
+  // 2. LIGHTHOUSE (Halberd Point / Pearlwake Boulevard): stone tower + rotating beam
+  const lighthouse = { tower: new T.Group(), beam: null, beamCone: null, angle: 0, light: null };
+  const lhX = 180, lhZ = 180; // Pearlwake area (z > 110)
+  lighthouse.tower.position.set(lhX, 0, lhZ);
+  // Stone base
+  cylinder(lhX, 3.5, lhZ, 5.5, 5.5, 7, mat.trim, 16); solid(lhX, lhZ, 11, 11, 7);
+  // Tower shaft (tapered)
+  cylinder(lhX, 18, lhZ, 3.2, 4.8, 22, mat.stone || mat.trim, 16); solid(lhX, lhZ, 6.4, 6.4, 22);
+  // Gallery level
+  cylinder(lhX, 29.5, lhZ, 3.8, 3.8, 1.2, mat.steel, 16);
+  box(lhX, 30.1, lhZ, 8.5, 0.2, 8.5, mat.trim);
+  // Lamp room (glass cylinder)
+  const lampRoom = new T.Mesh(new T.CylinderGeometry(2.8, 2.8, 4.5, 16), standard('#1a3a4a', 0.2, 0.8));
+  lampRoom.position.set(lhX, 33.5, lhZ); lampRoom.castShadow = true; scene.add(lampRoom);
+  // Lantern roof (cone)
+  const lanternRoof = new T.Mesh(new T.ConeGeometry(3.2, 2, 16), mat.steel);
+  lanternRoof.position.set(lhX, 36.5, lhZ); lanternRoof.castShadow = true; scene.add(lanternRoof);
+  // Rotating beam (visible cone + glow)
+  const beamGeometry = new T.ConeGeometry(0.01, 120, 16, 1);
+  beamGeometry.translate(0, 60, 0); // pivot at base
+  beamGeometry.rotateX(-Math.PI / 2); // point along -Z initially
+  const beamMaterial = new T.MeshBasicMaterial({
+    color: 0xffffee, transparent: true, opacity: 0.18, side: T.DoubleSide, depthWrite: false
+  });
+  lighthouse.beam = new T.Mesh(beamGeometry, beamMaterial);
+  lighthouse.beam.position.set(lhX, 32, lhZ);
+  lighthouse.beam.visible = false; scene.add(lighthouse.beam);
+  // Glow sprite at lamp room
+  const glowGeo = new T.SphereGeometry(1.2, 16, 12);
+  const glowMat = new T.MeshBasicMaterial({ color: 0xffffee, transparent: true, opacity: 0.6, depthWrite: false });
+  lighthouse.glow = new T.Mesh(glowGeo, glowMat);
+  lighthouse.glow.position.set(lhX, 32, lhZ); lighthouse.glow.visible = false; scene.add(lighthouse.glow);
+  // Point light for the beam
+  lighthouse.light = new T.SpotLight(0xffffee, 0, 140, Math.PI / 6, 0.5, 1);
+  lighthouse.light.position.set(lhX, 32, lhZ);
+  lighthouse.light.target.position.set(lhX, 0, lhZ - 100);
+  scene.add(lighthouse.light); scene.add(lighthouse.light.target);
+  // Window lights on tower
+  for (let floor = 8; floor < 28; floor += 4) {
+    for (let s = 0; s < 4; s++) {
+      const a = s * Math.PI / 2;
+      const wx = lhX + Math.sin(a) * 3.5;
+      const wz = lhZ + Math.cos(a) * 3.5;
+      const win = new T.Mesh(new T.BoxGeometry(1.2, 1.2, 0.1), mat.windowLight);
+      win.position.set(wx, floor, wz); win.rotation.y = a; scene.add(win);
+    }
+  }
+  scene.add(lighthouse.tower);
+
+  // 3. TIDE SYSTEM (Rustcrane Docks): water plane in docks with rising/falling level
+  const tide = { water: null, level: 0, phase: 0, baseY: -0.35 };
+  const tideGeometry = new T.PlaneGeometry(180, 220);
+  const tideMaterial = new T.ShaderMaterial({
+    uniforms: { time: { value: 0 }, night: { value: 0 }, tideLevel: { value: 0 } },
+    vertexShader: 'varying vec3 vWorld;void main(){vec4 p=modelMatrix*vec4(position,1.0);vWorld=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}',
+    fragmentShader: 'uniform float time;uniform float night;uniform float tideLevel;varying vec3 vWorld;void main(){float a=sin(vWorld.x*.6+time*.5+sin(vWorld.z*.15))*sin(vWorld.z*1.1+time);float b=pow(max(0.0,sin(vWorld.z*1.8+vWorld.x*.08+time)),20.0);vec3 c=mix(vec3(.04,.32,.38),vec3(.15,.55,.58),a*.3+.4);c+=b*.1;c=mix(c,vec3(.02,.08,.12),night*.85);float shore=smoothstep(-2.0,2.0,vWorld.y-tideLevel);c=mix(c,vec3(.06,.25,.35),shore);gl_FragColor=vec4(c,1.0);}'
+  });
+  tide.water = new T.Mesh(tideGeometry, tideMaterial);
+  tide.water.rotation.x = -Math.PI / 2;
+  tide.water.position.set(280, tide.baseY, -80); // Rustcrane Docks area (x~280, z~-80)
+  tide.water.receiveShadow = true;
+  scene.add(tide.water);
+  // Low dock aprons that flood at high tide (visual markers)
+  for (let x = 200; x <= 360; x += 20) {
+    for (let z = -180; z <= 20; z += 20) {
+      if (Math.random() < 0.3) {
+        box(x, 0.1, z, 18, 0.3, 18, mat.wood);
+        solid(x, z, 18, 18, 0.5);
+      }
+    }
+  }
+
+  // 4. FOOD CARTS (Saffron Pier Market / Lanternfish Marina): 3-4 carts with awnings, lamps, steam
+  const foodCarts = [];
+  const cartPositions = [
+    { x: 140, z: 40 }, { x: 165, z: 40 }, { x: 190, z: 40 }, { x: 215, z: 40 }
+  ];
+  for (const pos of cartPositions) {
+    const cart = new T.Group();
+    cart.position.set(pos.x, 0, pos.z);
+    // Cart base
+    const cartBase = new T.Mesh(new T.BoxGeometry(3, 1.2, 2), mat.wood);
+    cartBase.position.set(0, 0.6, 0); cart.add(cartBase);
+    const cartTop = new T.Mesh(new T.BoxGeometry(2.8, 0.1, 1.8), mat.trim);
+    cartTop.position.set(0, 1.3, 0); cart.add(cartTop);
+    // Awning
+    const awning1 = new T.Mesh(new T.BoxGeometry(3.4, 0.15, 2.6), standard('#8b2e2e'));
+    awning1.position.set(0, 2.2, 0); cart.add(awning1);
+    const awning2 = new T.Mesh(new T.BoxGeometry(3.4, 0.1, 2.6), standard('#a03a3a'));
+    awning2.position.set(0, 2.35, 0); cart.add(awning2);
+    // Support poles
+    for (const sx of [-1.5, 1.5]) {
+      const pole = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 2.2, 6), mat.steel);
+      pole.position.set(sx, 1.2, 0); cart.add(pole);
+    }
+    // Warm lamps under awning
+    for (const sz of [-0.7, 0.7]) {
+      const lamp = new T.Mesh(new T.SphereGeometry(0.18, 8, 6), mat.lamp);
+      lamp.position.set(0, 2.0, sz); cart.add(lamp);
+    }
+    // Steam puffs (small emissive spheres, animated in update)
+    const steam = [];
+    for (let i = 0; i < 3; i++) {
+      const puff = new T.Mesh(new T.SphereGeometry(0.25, 6, 5), standard('#e8e8e8', 0.5, 0.3));
+      puff.material.transparent = true; puff.material.opacity = 0.4;
+      puff.position.set((i - 1) * 0.6, 2.5, 0);
+      cart.add(puff); steam.push(puff);
+    }
+    // Sign
+    sign('FOOD', pos.x, 2.8, pos.z + 1.5, 2.5, '#ffd44a', 0);
+    scene.add(cart);
+    solid(pos.x, pos.z, 3, 2, 2.5);
+    foodCarts.push({ cart, steam, baseY: 2.5, phase: Math.random() * Math.PI * 2 });
+  }
+
+  // 5. TRAIN + RAILS (Rustcrane Docks, along harbor): ground rail line, train (loco + 2 cars), station, crossing
+  const train = { loco: null, cars: [], group: new T.Group(), progress: 0, loopLength: 0, crossingFlash: 0 };
+  // Rail path: long loop along harbor edge (z from -200 to 200, x ~ 280-320)
+  const railPath = [
+    { x: 300, z: -200 }, { x: 300, z: 200 }, { x: 260, z: 200 }, { x: 260, z: -200 }, { x: 300, z: -200 }
+  ];
+  // Build rails (two steel lines) + ties
+  for (let i = 0; i < railPath.length - 1; i++) {
+    const p0 = railPath[i], p1 = railPath[i + 1];
+    const dx = p1.x - p0.x, dz = p1.z - p0.z;
+    const len = Math.hypot(dx, dz);
+    const angle = Math.atan2(dx, dz);
+    train.loopLength += len;
+    for (const side of [-1, 1]) {
+      const rx = (p0.x + p1.x) / 2 + Math.sin(angle) * side * 1.1;
+      const rz = (p0.z + p1.z) / 2 + Math.cos(angle) * side * 1.1;
+      const rail = new T.Mesh(new T.BoxGeometry(0.25, 0.2, len), mat.steel);
+      rail.position.set(rx, 0.15, rz); rail.rotation.y = angle; scene.add(rail);
+    }
+    // Ties every 2 units
+    const ties = Math.ceil(len / 2);
+    for (let t = 0; t <= ties; t++) {
+      const tt = t / ties;
+      const tx = p0.x + dx * tt;
+      const tz = p0.z + dz * tt;
+      const tie = new T.Mesh(new T.BoxGeometry(2.8, 0.15, 0.3), mat.wood);
+      tie.position.set(tx, 0.07, tz); tie.rotation.y = angle; scene.add(tie);
+    }
+  }
+  // Station platform at z ~ 0
+  const stationX = 250, stationZ = 0;
+  box(stationX, 0.3, stationZ, 8, 0.4, 30, mat.trim); solid(stationX, stationZ, 8, 30, 0.5);
+  box(stationX, 1.0, stationZ, 6, 0.2, 28, mat.wood);
+  // Station roof
+  for (const sx of [-2.5, 2.5]) {
+    cylinder(stationX + sx, 2.5, stationZ, 0.15, 0.15, 5, mat.steel, 6);
+    solid(stationX + sx, stationZ, 0.3, 0.3, 5);
+  }
+  box(stationX, 5.3, stationZ, 7, 0.3, 28.5, standard('#8b2e2e'));
+  // Station lamps
+  for (const sz of [-12, 12]) {
+    cylinder(stationX + 3.5, 3.0, stationZ + sz, 0.08, 0.12, 6, mat.steel);
+    box(stationX + 4.5, 6.0, stationZ + sz, 1.5, 0.12, 0.5, mat.lamp);
+    lampPositions.push(new T.Vector3(stationX + 4.5, 5.8, stationZ + sz));
+  }
+  sign('RUSTCRANE STATION', stationX, 5.6, stationZ + 15.5, 6, '#ffd44a', 0);
+  // Level crossing at z = -80 (crosses the avenue)
+  const crossingZ = -80;
+  const crossingX = 280;
+  // Crossing arms (flashing lights)
+  const crossingLights = [];
+  for (const side of [-1, 1]) {
+    const cx = crossingX + side * 4;
+    const arm = new T.Group();
+    arm.position.set(cx, 0, crossingZ);
+    cylinder(cx, 2.5, crossingZ, 0.12, 0.12, 5, mat.steel); // pole
+    solid(cx, crossingZ, 0.25, 0.25, 5);
+    const boom = new T.Mesh(new T.BoxGeometry(5, 0.15, 0.3), standard('#e83e3e'));
+    boom.position.set(side * 2.5, 4.8, 0); boom.rotation.y = side * Math.PI / 2;
+    arm.add(boom);
+    // Flashing lights on boom
+    for (let li = 0; li < 3; li++) {
+      const light = new T.Mesh(new T.SphereGeometry(0.18, 8, 6), mat.lamp);
+      light.position.set(side * (1 + li * 1.3), 4.8, 0); arm.add(light);
+      crossingLights.push({ light, side, offset: li });
+    }
+    scene.add(arm);
+  }
+  train.crossingLights = crossingLights;
+  train.crossingZ = crossingZ;
+
+  // Train: locomotive + 2 cars
+  train.group.position.set(railPath[0].x, 0.6, railPath[0].z);
+  // Locomotive
+  const loco = new T.Group();
+  const locoBody = new T.Mesh(new T.BoxGeometry(2.8, 3.2, 8), mat.steel);
+  locoBody.position.y = 0; locoBody.castShadow = true; loco.add(locoBody);
+  // Cab
+  const cab = new T.Mesh(new T.BoxGeometry(2.2, 2.4, 3), mat.steel);
+  cab.position.set(0, 1.8, -2.5); cab.castShadow = true; loco.add(cab);
+  // Cab windows
+  const cabWinMat = standard('#fff8e7', 0.1, 1.0); cabWinMat.emissive = new T.Color('#fff8e7'); cabWinMat.emissiveIntensity = 1.0;
+  const cabWin1 = new T.Mesh(new T.BoxGeometry(1.8, 1.2, 0.1), cabWinMat);
+  cabWin1.position.set(0, 2.2, -1.5); loco.add(cabWin1);
+  const cabWin2 = new T.Mesh(new T.BoxGeometry(1.8, 1.2, 0.1), cabWinMat);
+  cabWin2.position.set(0, 2.2, -3.5); loco.add(cabWin2);
+  // Nose
+  const noseLoco = new T.Mesh(new T.ConeGeometry(1.4, 2.8, 4), mat.steel);
+  noseLoco.position.set(0, 0.6, 5); noseLoco.rotation.x = -Math.PI / 2; noseLoco.castShadow = true; loco.add(noseLoco);
+  // Headlight
+  const headlight = new T.Mesh(new T.SphereGeometry(0.25, 8, 6), mat.lamp);
+  headlight.position.set(0, 1.2, 4.2); loco.add(headlight);
+  // Loco running lights
+  for (const sz of [-3.5, 3.5]) {
+    const rl = new T.Mesh(new T.SphereGeometry(0.12, 8, 6), mat.lamp);
+    rl.position.set(1.5, 0.8, sz); loco.add(rl);
+    const rl2 = rl.clone(); rl2.position.set(-1.5, 0.8, sz); loco.add(rl2);
+  }
+  loco.position.z = 0; train.group.add(loco); train.loco = loco;
+  // Car 1
+  const car1 = new T.Group();
+  const car1Body = new T.Mesh(new T.BoxGeometry(2.6, 2.8, 12), standard('#2d1a1a'));
+  car1Body.position.y = 0; car1Body.castShadow = true; car1.add(car1Body);
+  // Windows
+  const carWinMat = standard('#fff8e7', 0.1, 1.0); carWinMat.emissive = new T.Color('#fff8e7'); carWinMat.emissiveIntensity = 0.8;
+  for (let w = -4.5; w <= 4.5; w += 3) {
+    box(0, 0.5, w, 2.2, 1.6, 0.08, carWinMat, 0, car1);
+  }
+  car1.position.z = -14; train.group.add(car1); train.cars.push(car1);
+  // Car 2
+  const car2 = new T.Group();
+  const car2Body = new T.Mesh(new T.BoxGeometry(2.6, 2.8, 12), standard('#1a2d1a'));
+  car2Body.position.y = 0; car2Body.castShadow = true; car2.add(car2Body);
+  for (let w = -4.5; w <= 4.5; w += 3) {
+    box(0, 0.5, w, 2.2, 1.6, 0.08, carWinMat, 0, car2);
+  }
+  car2.position.z = -28; train.group.add(car2); train.cars.push(car2);
+  scene.add(train.group);
+
+  // Collision for train cars (added dynamically in update based on position)
+  // Station collision already added via solid()
+
   for(const batch of batches.values()) {
     const geometry=mergeGeometries(batch.geometries,false);
     const mesh=new T.Mesh(geometry,batch.material);mesh.castShadow=batch.material!==mat.asphalt&&batch.material!==mat.grass&&batch.material!==mat.sidewalk&&batch.material!==mat.sand;mesh.receiveShadow=[mat.asphalt,mat.grass,mat.sidewalk,mat.sand,mat.trim].includes(batch.material);scene.add(mesh);
@@ -663,6 +966,104 @@ export function createCity(scene, mat) {
     palms.forEach((p,index)=>{for(let l=0;l<9;l++){
       transform.position.set(p.x+.1,p.h,p.z);transform.rotation.set((l%2)*.13+Math.sin(time*1.1+index*.7)*.035,l/9*Math.PI*2+index,-.1+Math.sin(time*.9+index+l*.4)*.045);transform.scale.setScalar(.8+(index%4)*.08);transform.updateMatrix();leaves.setMatrixAt(index*9+l,transform.matrix);
     }});leaves.instanceMatrix.needsUpdate=true;
+
+    // ── MONORAIL: move car along rectangular loop
+    const monoSpeed = 4.5; // units per second
+    monorail.progress = (monorail.progress + monoSpeed * 0.016) % monorail.loopLength; // assuming ~60fps dt
+    let remaining = monorail.progress;
+    for (let i = 0; i < monoPath.length - 1; i++) {
+      const p0 = monoPath[i], p1 = monoPath[i + 1];
+      const dx = p1.x - p0.x, dz = p1.z - p0.z;
+      const len = Math.hypot(dx, dz);
+      if (remaining <= len) {
+        const t = remaining / len;
+        const cx = p0.x + dx * t;
+        const cz = p0.z + dz * t;
+        const angle = Math.atan2(dx, dz);
+        monorail.carGroup.position.set(cx, 12.8, cz);
+        monorail.carGroup.rotation.y = angle;
+        break;
+      }
+      remaining -= len;
+    }
+
+    // ── LIGHTHOUSE: rotating beam at night
+    if (night > 0.1) {
+      lighthouse.angle += 0.0035; // ~1.5 rpm
+      lighthouse.beam.rotation.y = lighthouse.angle;
+      lighthouse.beam.visible = true;
+      lighthouse.glow.visible = true;
+      lighthouse.light.intensity = night * 85000;
+      // Update spot light target to follow beam
+      const beamDir = new T.Vector3(Math.sin(lighthouse.angle), 0, Math.cos(lighthouse.angle));
+      lighthouse.light.target.position.set(lhX + beamDir.x * 100, 0, lhZ + beamDir.z * 100);
+    } else {
+      lighthouse.beam.visible = false;
+      lighthouse.glow.visible = false;
+      lighthouse.light.intensity = 0;
+    }
+
+    // ── TIDE: slow rise/fall cycle (period ~120 seconds)
+    tide.phase += 0.000052; // 2*PI / 120000ms ~ 0.000052 per ms, but update gets time in seconds
+    tide.level = Math.sin(time * 0.0052) * 0.85; // 0.85m amplitude, ~12min period
+    tide.water.position.y = tide.baseY + tide.level;
+    tideMaterial.uniforms.tideLevel.value = tide.level;
+    tideMaterial.uniforms.time.value = time;
+    tideMaterial.uniforms.night.value = night;
+
+    // ── FOOD CARTS: steam puff animation
+    for (const fc of foodCarts) {
+      fc.phase += 0.02;
+      for (let i = 0; i < fc.steam.length; i++) {
+        const puff = fc.steam[i];
+        const pPhase = fc.phase + i * 2.1;
+        puff.position.y = fc.baseY + Math.sin(pPhase) * 0.8 + 0.5;
+        puff.scale.setScalar(0.5 + Math.sin(pPhase * 0.7) * 0.3);
+        puff.material.opacity = 0.2 + Math.sin(pPhase) * 0.15;
+      }
+    }
+
+    // ── TRAIN: move along rail loop + level crossing flash
+    const trainSpeed = 6.0; // units per second
+    train.progress = (train.progress + trainSpeed * 0.016) % train.loopLength;
+    remaining = train.progress;
+    let trainAngle = 0;
+    for (let i = 0; i < railPath.length - 1; i++) {
+      const p0 = railPath[i], p1 = railPath[i + 1];
+      const dx = p1.x - p0.x, dz = p1.z - p0.z;
+      const len = Math.hypot(dx, dz);
+      if (remaining <= len) {
+        const t = remaining / len;
+        const cx = p0.x + dx * t;
+        const cz = p0.z + dz * t;
+        trainAngle = Math.atan2(dx, dz);
+        train.group.position.set(cx, 0.6, cz);
+        train.group.rotation.y = trainAngle;
+        break;
+      }
+      remaining -= len;
+    }
+    // Level crossing flash when train approaches (within 30 units of crossingZ)
+    const trainZ = train.group.position.z;
+    const distToCrossing = Math.abs(trainZ - train.crossingZ);
+    if (distToCrossing < 30) {
+      train.crossingFlash += 0.5;
+      const flashOn = Math.sin(train.crossingFlash) > 0;
+      for (const cl of train.crossingLights) {
+        cl.light.visible = flashOn;
+      }
+    } else {
+      train.crossingFlash = 0;
+      for (const cl of train.crossingLights) {
+        cl.light.visible = false;
+      }
+    }
+
+    // Dynamic train car collision (approximate: loco + 2 cars as boxes along train group)
+    // Clear previous dynamic train colliders (we'll re-add each frame - simpler: just check in blocked)
+    // Note: blocked() uses colliders array, so we'd need to add/remove. For now, skip dynamic collision
+    // as it requires main.js changes. Visual only per spec.
+
     const nearby=lampPositions.filter(p=>p.distanceToSquared(focus)<4200).sort((a,b)=>a.distanceToSquared(focus)-b.distanceToSquared(focus));
     nightLights.forEach((light,i)=>{light.visible=night>.1;light.intensity=nearby[i]?night*21:0;if(nearby[i])light.position.copy(nearby[i]);});
   }

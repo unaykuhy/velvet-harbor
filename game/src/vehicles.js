@@ -158,6 +158,22 @@ export function buildCar(model) {
       const fender=new T.Mesh(new T.SphereGeometry(1,20,12),paint);fender.position.set(x,.58,z);fender.scale.set(.34,.3,.82);root.add(fender);
       const trim=new T.Mesh(new T.TorusGeometry(.43,.025,8,24,Math.PI),chrome);trim.rotation.y=Math.PI/2;trim.position.set(x,.47,z);root.add(trim);
     }
+  } else if(model.kind==='bus') {
+    const teal=paint,cream=standard('#f5f0e1',.2,.45),gold=surfaceMaterial({color:'#c9904f',emissive:'#e8b85a',emissiveIntensity:.4,metalness:.7,roughness:.3});
+    root.add(extrudedProfile([[-1.5,h],[-1.0,roofHeight],[l-1.5,roofHeight],[l-0.5,h]],w*.88,glass));
+    part(0,roofHeight+.03,(l-2.5)/2,w*.9,.14,l-2.5+.3,cream);
+    const stripeY=h*.55;
+    part(0,stripeY,0,w*1.02,.35,model.length-.4,gold);
+    part(0,h+.02,0,w*1.01,.08,model.length-.4,gold);
+    for(let i=0;i<8;i++){
+      const z=-l+1.0+i*(model.length-2.0)/7;
+      const winW=w*.38,winH=h*.55;
+      part(w*.52,h*.4,z,winW,winH,.04,glass);
+      part(-w*.52,h*.4,z,winW,winH,.04,glass);
+    }
+    const doorZ=-l+2.5;
+    part(w*.52,h*.35,doorZ,1.2,h*.7,.06,teal);
+    part(w*.52,h*.35,doorZ,1.0,h*.5,.04,glass);
   } else if(model.kind==='utility') {
     root.add(extrudedProfile([[-1.1,h],[-.8,roofHeight],[1.55,roofHeight],[1.8,h]],w*.85,glass));
     part(0,roofHeight+.04,.3,w*.91,.13,2.8,paint);
@@ -187,16 +203,31 @@ export function buildCar(model) {
     part(Math.sign(x)*(w/2+.09),h*.8,.25,.03,.045,.22,chrome);
   }
   const wheels=[],frontWheels=[];
-  for(const x of [-w*.51,w*.51])for(const z of [-l*.65,l*.65]) {
-    const pivot=new T.Group();pivot.position.set(x,.43,z);root.add(pivot);
-    const tire=new T.Mesh(new T.CylinderGeometry(.4,.4,.25,16),rubber);tire.rotation.z=Math.PI/2;pivot.add(tire);
-    const spin=new T.Group();pivot.add(spin);
-    const spokes=[];
-    for(let spoke=0;spoke<5;spoke++){
-      const g=new T.BoxGeometry(.28,.055,.48);g.rotateX(spoke*Math.PI/5);spokes.push(g);
+  if(model.kind==='bus'){
+    const positions=[[-w*.55,-l*.7],[w*.55,-l*.7],[-w*.55,-l*.05],[w*.55,-l*.05],[-w*.55,l*.65],[w*.55,l*.65]];
+    for(const [x,z] of positions){
+      const pivot=new T.Group();pivot.position.set(x,.5,z);root.add(pivot);
+      const tire=new T.Mesh(new T.CylinderGeometry(.5,.5,.32,20),rubber);tire.rotation.z=Math.PI/2;pivot.add(tire);
+      const spin=new T.Group();pivot.add(spin);
+      const spokes=[];
+      for(let spoke=0;spoke<6;spoke++){
+        const g=new T.BoxGeometry(.35,.06,.55);g.rotateX(spoke*Math.PI/6);spokes.push(g);
+      }
+      spin.add(new T.Mesh(mergeGeometries(spokes),chrome));
+      wheels.push(spin);if(z<0)frontWheels.push(pivot);
     }
-    spin.add(new T.Mesh(mergeGeometries(spokes),chrome));
-    wheels.push(spin);if(z<0)frontWheels.push(pivot);
+  }else{
+    for(const x of [-w*.51,w*.51])for(const z of [-l*.65,l*.65]){
+      const pivot=new T.Group();pivot.position.set(x,.43,z);root.add(pivot);
+      const tire=new T.Mesh(new T.CylinderGeometry(.4,.4,.25,16),rubber);tire.rotation.z=Math.PI/2;pivot.add(tire);
+      const spin=new T.Group();pivot.add(spin);
+      const spokes=[];
+      for(let spoke=0;spoke<5;spoke++){
+        const g=new T.BoxGeometry(.28,.055,.48);g.rotateX(spoke*Math.PI/5);spokes.push(g);
+      }
+      spin.add(new T.Mesh(mergeGeometries(spokes),chrome));
+      wheels.push(spin);if(z<0)frontWheels.push(pivot);
+    }
   }
   const beam=new T.SpotLight('#ffe8b3',0,35,.6,.65,1.5);beam.position.set(0,.8,-l);beam.target.position.set(0,0,-20);
   const smoke=new T.Group();root.add(smoke);const smokeMaterial=new T.MeshBasicMaterial({color:'#596264',transparent:true,opacity:.25,depthWrite:false});

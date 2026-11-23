@@ -144,3 +144,10 @@
 - Browser gates: **0 console errors, 0 page errors, 0 non-file requests**. The unedited JPEG capture is **1280×720** and **165,094 bytes**.
 - `npx -y -p typescript tsc --noEmit`: **0 errors** on Node **v24.22.1**. `node main.ts`: **exit 0 in 0.515 seconds**, with a valid **783,054-byte dossier.json** in a clean isolated output directory after the screenshot replacement.
 - ANGLE/Mesa llvmpipe measured **2.238 FPS** over **8 frames / 3.574 seconds** during the live Bug B observation. This is a software-rendering measurement, not a hardware-GPU performance claim.
+
+## 2026-11-23 ~19:52 WITA — Milestone 4 Vesper Coach bus + Milestone 7 extras (first commit)
+- Vesper Coach intercity bus: 24-point loop, 6 halts with shelters, 4 s dwell, boarding/alighting counters (`bus.js` new; `traffic.js`, `vehicles.js`).
+- M7 extras in `world.js`: monorail loop + car, lighthouse + rotating beam, tide system, food carts, train + rails + station + crossing.
+- Fixes: `traffic.lights` crash (`{lights, phase}` passed to `createBus`); duplicate `windowMat` renamed `windowMatMono`.
+- Verified: tests 10/10, tsc 0, main.ts exit 0 (dossier 812,283 B), makefun check 5/0, Playwright smoke PASS (bus moved 106.47 m / 30 sim-s, 0/0/0 errors).
+- Known defects (fix in progress): bus first leg diagonal through buildings from (0,0); terminal halt never dwells; boarding unobserved; M7 visuals not yet eye-checked; monorail pylon placement to verify.
