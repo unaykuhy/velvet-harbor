@@ -173,12 +173,54 @@ export function createCity(scene, mat) {
     box(285,26,z,43,2,2,mat.yellow);box(285,12,z+15,.12,25,.12,mat.steel);
   }
   // A genuine graded bridge crosses the harbor, with matching collision height.
+  // Milestone 3d upgrades the EXISTING bridge in place — no second deck, no new
+  // alignment: Art Deco post finials and ribbon rails, cyan/magenta neon edge
+  // trim, staggered warm pole lamps and stepped entrance portals. Roadway width,
+  // grade and bridgeHeight collision are untouched.
   box(310,4.7,-80,50,.6,20,mat.asphalt);
   bake(new T.BoxGeometry(45.28,.6,20),mat.asphalt,262.5,2.2,-80,0,0,.11066);
   bake(new T.BoxGeometry(45.28,.6,20),mat.asphalt,357.5,2.2,-80,0,0,-.11066);
+  // Deco fascia bands dress the flat span's outer deck edges without narrowing the road.
+  for(const z of [-90.18,-69.82])box(310,4.42,z,49.6,.5,.24,mat.trim);
+  let lampSide=0;
   for(let x=245;x<380;x+=8) {
     const y=bridgeHeight(x,-80);
-    for(const z of [-90, -70]){box(x,y+1,z,.1,2,.1,mat.steel);box(x,y+1.8,z,8,.1,.1,mat.trim);}
+    for(const z of [-90, -70]) {
+      box(x,y+1,z,.1,2,.1,mat.steel);box(x,y+1.8,z,8,.1,.1,mat.trim);
+      box(x,y+1.42,z,7.2,.07,.07,mat.steel);   // deco ribbon rail
+      box(x,y+2.06,z,.5,.14,.5,mat.trim);      // stepped cap plate
+      box(x,y+2.32,z,.24,.34,.24,mat.trim);    // finial
+      box(x,y+2.58,z,.12,.2,.12,mat.neon);     // neon tip
+    }
+    box(x+4,y+1.94,-90.3,7.6,.12,.16,mat.neonCyan);    // north edge neon ribbon
+    box(x+4,y+1.94,-69.7,7.6,.12,.16,mat.neonMagenta); // south edge neon ribbon
+    // Staggered warm pole lamps stand on the railing line with arms reaching over
+    // the kerb, so the drivable width stays exactly as it was.
+    const lz=lampSide%2?-70.25:-89.75;lampSide++;
+    const dir=lz<-80?1:-1;
+    box(x+2,y+1.45,lz,.09,2.9,.09,mat.steel);
+    box(x+2,y+2.86,lz+dir*.55,.09,.09,1.1,mat.steel);
+    box(x+2,y+2.8,lz+dir*1.15,.8,.16,.55,mat.lamp);
+    lampPositions.push(new T.Vector3(x+2,y+2.62,lz+dir*1.15));
+  }
+  // Art Deco entrance portals frame both ends: stepped pylons with steel fins and
+  // neon ribs, joined by a slim stepped arch. They stand outside the deck edges,
+  // so neither the roadway nor the skyline-and-lantern view from the deck is blocked.
+  for(const ex of [238.5,381.5]) {
+    for(const pz of [-91.9,-68.1]) {
+      const inward=pz<-80?1:-1,rib=pz<-80?mat.neonCyan:mat.neonMagenta;
+      box(ex,.5,pz,2.3,2.6,2.3,mat.trim);
+      box(ex,3.6,pz,1.5,3.4,1.5,mat.trim);
+      box(ex,6,pz,1.05,1.4,1.05,mat.trim);
+      box(ex,7,pz,.62,.8,.62,mat.trim);
+      box(ex,3.8,pz+inward*.82,1.7,3.8,.18,mat.steel);
+      for(const off of [-.55,0,.55])box(ex+off,3.9,pz+inward*.95,.14,4,.1,rib);
+      solid(ex,pz,2.3,2.3,7.5);
+    }
+    box(ex,7.1,-80,.85,.5,23.4,mat.trim);
+    box(ex,7.55,-80,.66,.44,16.5,mat.trim);
+    box(ex,7.95,-80,.5,.4,10.5,mat.trim);
+    box(ex,8.28,-80,.36,.3,5.5,mat.trim);
   }
   // Instanced palms: curved trunks and tapered, bent leaf ribbons authored as geometry.
   const palms=[];

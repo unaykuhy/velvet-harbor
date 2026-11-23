@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {avenues} from './world.js';
+import {avenues,bridgeHeight} from './world.js';
 import {buildCar,vehicleModels,carsOverlap,animateAICar} from './vehicles.js';
 import {standard,surfaceMaterial} from './render.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
@@ -28,7 +28,8 @@ export function createTraffic(scene,vehicles) {
   }
   for(const [material,parts] of signalParts){const mesh=new T.Mesh(mergeGeometries(parts),material);scene.add(mesh);for(const part of parts)part.dispose();}
   // Rectangular routes run clockwise on the inside right-hand lane of each avenue.
-  const routes=[[0,80,80,240],[0,80,80,160],[0,80,160,240],[-160,-80,80,160],[80,160,80,160],[160,240,160,240],[-80,0,80,160],[0,80,-160,0],[-240,-160,-160,0],[80,160,-160,0],[160,240,0,80],[-160,-80,160,240]];
+  // The last route crosses the harbor bridge so AI traffic shares the span with the player.
+  const routes=[[0,80,80,240],[0,80,80,160],[0,80,160,240],[-160,-80,80,160],[80,160,80,160],[160,240,160,240],[-80,0,80,160],[0,80,-160,0],[-240,-160,-160,0],[80,160,-160,0],[160,240,0,80],[-160,-80,160,240],[240,380,-80,-80]];
   routes.forEach(([left,right,top,bottom],i)=>{
     const car=buildCar({...vehicleModels[(i+2)%5],color:['#f0c287','#6b9b99','#bf7770','#e4dfc5'][i%4]});
     car.id=`traffic-${i}`;car.ai=true;car.route=[[left+3,bottom-3],[left+3,top+3],[right-3,top+3],[right-3,bottom-3]];
@@ -66,6 +67,8 @@ export function createTraffic(scene,vehicles) {
       const next=p.clone();next.x+=fx*Math.min(remaining,car.speed*dt);next.z+=fz*Math.min(remaining,car.speed*dt);
       if(!vehicles.cars.concat(vehicles.external).some(o=>o!==car&&carsOverlap(car,next,o,o.root.position,.3)))p.copy(next);else{car.speed=0;car.waiting='vehicle';}
       animateAICar(car,dt);
+      // AI cars follow the bridge grade so they ride the deck instead of clipping through it.
+      car.root.position.y=bridgeHeight(car.root.position.x,car.root.position.z)+.02;
     }
   }
   function checkRedCrossing(car,previous){

@@ -159,6 +159,26 @@ Verification (all numbers from this session's runs):
 - Pixel evidence (`velvet-harbor-launcher/m3c-pixel-evidence.cjs`, all captures 1280×720, tonal variation 252–254 → no uniform-fill / camera-inside-geometry frames): first-car lower-center dashboard region average **(23,32,57)** vs the same region on the road in chase view **(3,4,34)**, warm lit gauge pixels present (**0.089%**, ≈82 px) and steering-wheel chrome pixels (**1.21%** share) — dashboard + wheel visibly present; first-car sky region **(112,83,85)** = warm horizon through the windshield; first-foot sky band **(75,51,77)** vs ground band **(55,68,109)** — clean eye-level horizon, no wall fill.
 - Screenshots (1280×720, separate files in `~/workspace/makefun/velvet-harbor-preview/`, NOT in `screenshots/`): `m3c-chase-car.jpg` (122,167 B), `m3c-first-car.jpg` (133,034 B), `m3c-chase-foot.jpg` (118,823 B), `m3c-first-foot.jpg` (134,344 B).
 
+## Milestone 3d — Art Deco harbor bridge upgrade + AI traffic on the deck (2026-11-22)
+
+What changed (bridge dressing + one AI route only; roadway width, grade, `bridgeHeight` collision, police/mission/save/vendor/name logic untouched — per `git status` only `game/src/world.js`, `game/src/traffic.js`, `game/bundle.min.js` are modified):
+
+- **Deco fascia + railing dress** (`game/src/world.js`): trim fascia bands on both outer deck edges (z −90.18/−69.82, outside the 20 m roadway); every railing post gains a ribbon rail, stepped cap plate, finial and neon tip; neon ribbons run the deck edges (cyan north, magenta south); staggered warm pole lamps (steel pole + arm reaching over the kerb from the railing line, so drivable width is unchanged) feed `lampPositions` for the existing dynamic night lights.
+- **Art Deco entrance portals** at both ends (x 238.5 / 381.5, OUTSIDE the deck edges): stepped pylons (2.3 → 1.5 → 1.05 → 0.62 m tiers) with steel fins, neon ribs (cyan/magenta by side), a slim 4-tier stepped arch over the road, and `solid()` colliders on the pylons only.
+- **AI traffic on the bridge** (`game/src/traffic.js`): new route `[240,380,-80,-80]` (id `traffic-12`, 13th AI car) loops the full span; AI cars now set `y = bridgeHeight(x,z) + .02` every tick so they ride the graded deck instead of clipping through it. `trafficCarCount` measured **13** in the live run.
+
+Verification (all numbers from this session's runs):
+
+- **Bundle rebuilt**: `npx esbuild game/src/main.js --bundle --format=iife --minify --outfile=game/bundle.min.js` → **598,861 B** (was 583.8 kB at 3c). New bridge code confirmed present in the minified output (portal literals 381.5/91.9/−90.18 grep hits; comment strings stripped by minify as expected). The page loads `bundle.min.js` (`game/index.html:30`), so the Playwright run below exercised the NEW bridge.
+- `node --test tests/run.mjs`: **10/10 pass, 0 fail, 0 cancelled** (duration 2,713 ms).
+- `npx -y -p typescript tsc --noEmit`: **0 errors** (exit 0).
+- `node main.ts`: **exit 0**, **0.365 s** wall (<10 s); fresh isolated output dir `/tmp/opencode/m3d-out-fresh/` → dossier.json **764,690 B**. `vendor/` untouched (git status: not modified).
+- Playwright (`velvet-harbor-launcher/verify-m3d-bridge-playwright.cjs`, Chromium 1148, file://, 1280×720, DOM `#new` click, deterministic manual stepping via `__vhTest.setManual/step`): **PASS**.
+  - **Player drives the bridge end to end**: entered parked `bay-4` (heading π/2, facing west), teleported to the east end and drove west along z = −80. Player trace: x **375 → 240.8** on the deck (z held −80), then coasted past the west portal to x 165.7. Player max y **5.02** = midspan deck height (`bridgeHeight` peak 5 + .02) — the car rode the graded deck, it did not clip through. Note: the world boundary blocks any car center beyond x > 378 (`world.js blocked()`), so x = 375 is the closest legitimate start to the east portal; the deck itself ends at 380.
+  - **AI traffic crosses the deck**: `traffic-12` traversed x **243 → 373.5** (span > 120 m asserted) with max y **5.02** at midspan — rides the deck height, does not pass through it. `trafficCarCount` = **13**.
+  - Gates: **0 console errors, 0 page errors, 0 non-file requests**. 485 draw calls midspan (SwiftShader software render — not a GPU claim).
+- Screenshot: `~/workspace/makefun/velvet-harbor-preview/m3d-bridge.jpg` (1280×720, 122,909 B), captured from the chase camera above the deck at midspan (camera [328.56, 9.68, −80], player x 302–318, y > 4.4) — skyline + lantern vantage per brief, NOT in `screenshots/`. **Visual-content review of this capture: NOT VERIFIED by this agent** (image viewing unavailable in this session — verify tooling confirms capture position, dimensions and non-uniform file only); coordinator should eyeball `m3d-bridge.jpg` before commit.
+
 ## Known limits
 
 Software rendering is too slow for comfortable play. The measured performance gate is not passed, and hardware performance must be assessed before accepting the build. The simulation limits long frame steps to preserve collision stability, so play and the clock slow down under very low frame rates. The software renderer uses reduced internal resolution and a smaller shadow map; the UI and screenshots retain the requested viewport dimensions.
