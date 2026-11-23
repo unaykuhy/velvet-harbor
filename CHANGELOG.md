@@ -151,3 +151,8 @@
 - Fixes: `traffic.lights` crash (`{lights, phase}` passed to `createBus`); duplicate `windowMat` renamed `windowMatMono`.
 - Verified: tests 10/10, tsc 0, main.ts exit 0 (dossier 812,283 B), makefun check 5/0, Playwright smoke PASS (bus moved 106.47 m / 30 sim-s, 0/0/0 errors).
 - Known defects (fix in progress): bus first leg diagonal through buildings from (0,0); terminal halt never dwells; boarding unobserved; M7 visuals not yet eye-checked; monorail pylon placement to verify.
+
+## 2026-11-23 ~20:12 WITA — Vesper Coach bus fix-2 (start position + terminal halt)
+- Bus starts at route[0] (240,240) instead of (0,0) — no more diagonal first leg through buildings; terminal halt moved to (240,240) so it dwells; `traffic.reset()` resets the bus.
+- Verified: tests 10/10, tsc 0, Playwright PASS (moved 141.25 m, sawDwell=true, minSpeed=0, 0/0/0); coordinator re-ran: bus on avenue z=240, moved ~357 m / 80 sim-s, 0/0/0; screenshot eye-checked (bus center-frame at Pearlwake intersection).
+- Known gap: boarding never observed (maxPassengers 0) — no ped route passes within 6 m of a halt.

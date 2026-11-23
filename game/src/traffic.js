@@ -38,7 +38,7 @@ export function createTraffic(scene,vehicles) {
     scene.add(car.root);cars.push(car);vehicles.cars.push(car);
   });
   const {bus,update:busUpdate}=createBus(scene,vehicles,{lights,phase});
-  function reset(){clock=0;redStops=0;redViolations=0;for(const c of cars){const edge=c.startEdge,a=c.route[edge],b=c.route[(edge+1)%4];c.root.position.set(a[0]+(b[0]-a[0])*c.startFraction,.02,a[1]+(b[1]-a[1])*c.startFraction);c.target=(edge+1)%4;c.heading=Math.atan2(-(b[0]-a[0]),-(b[1]-a[1]));c.speed=0;c.ai=true;c.waiting='';c.root.rotation.y=c.heading;if(c.rider)c.rider.visible=true;c.owned=false;}}
+  function reset(){clock=0;redStops=0;redViolations=0;for(const c of cars){const edge=c.startEdge,a=c.route[edge],b=c.route[(edge+1)%4];c.root.position.set(a[0]+(b[0]-a[0])*c.startFraction,.02,a[1]+(b[1]-a[1])*c.startFraction);c.target=(edge+1)%4;c.heading=Math.atan2(-(b[0]-a[0]),-(b[1]-a[1]));c.speed=0;c.ai=true;c.waiting='';c.root.rotation.y=c.heading;if(c.rider)c.rider.visible=true;c.owned=false;}}bus.root.position.set(240,0.02,240);bus.target=0;bus.speed=0;bus.dwellTimer=0;bus.boardingHalt=-1;
   function stopDistance(car){
     const p=car.root.position,fx=-Math.sin(car.heading),fz=-Math.cos(car.heading),axis=Math.abs(fz)>.7?'NS':'EW';
     let distance=Infinity;

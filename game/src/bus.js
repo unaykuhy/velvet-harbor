@@ -25,7 +25,7 @@ export function createBus(scene, traffic, lightsApi) {
     [240, -160], [240, -80], [240, 0], [240, 80], [240, 160]
   ];
   bus.halts = [
-    { x: 200, z: 240, name: 'Prism Heights Terminal' },
+    { x: 240, z: 240, name: 'Prism Heights Terminal' },
     { x: 0, z: 240, name: 'Pearlwake Boulevard' },
     { x: -240, z: 80, name: 'Lanternfish Marina' },
     { x: -240, z: -80, name: 'Sunwick Hills' },
@@ -34,6 +34,8 @@ export function createBus(scene, traffic, lightsApi) {
   ];
   bus.haltShelters = [];
   buildHaltShelters(scene, bus.halts, bus.haltShelters);
+  bus.root.position.set(240, 0.02, 240);
+  bus.target = 0;
   scene.add(bus.root);
   traffic.external.push(bus);
   return { bus, update: (dt, active, focus, pedestrians) => updateBus(bus, dt, active, focus, pedestrians, traffic, lightsApi) };
