@@ -13,6 +13,7 @@ import {createPedestrians} from './peds.js';
 import {createPolice} from './police.js';
 import {createRain,createLanterns} from './weather.js';
 import {createPostFX} from './postfx.js';
+import {createHelicopter} from './helicopter.js';
 
 const graphics=createRenderer(),materials=makeMaterials();
 const postfx=createPostFX(graphics.renderer,graphics.scene,graphics.camera);
@@ -23,6 +24,13 @@ const hud=createHUD(),minimap=createMinimap(world),audio=createAudio();
 const traffic=createTraffic(graphics.scene,vehicles);
 const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
 police.onWantedChange(detail=>window.dispatchEvent(new CustomEvent('velvet:wanted-change',{detail})));
+const helicopter=createHelicopter(graphics.scene);
+window.addEventListener('velvet:wanted-change',e=>{
+  helicopter.setActive(e.detail.helicopterRequired,night);
+  const prev=e.detail.previous,wanted=e.detail.wanted;
+  if(wanted>prev)hud.dispatch(`WANTED LEVEL ${wanted} — ${wanted===5?'SKY PATROL INBOUND':'ALL UNITS ENGAGE'}`);
+  else if(wanted<prev)hud.dispatch(wanted===0?'SEARCH TERMINATED — SUBJECT LOST':`WANTED REDUCED TO ${wanted} STAR${wanted===1?'':'S'}`);
+});
 const pedestrians=createPedestrians(graphics.scene,world,traffic,()=>police.offence('pedestrian',activeCar.root.position));
 const state={money:2450,health:100,armor:50,minutes:18*60+30,cameraView:'chase'};
 const el=id=>document.getElementById(id);
@@ -249,7 +257,7 @@ function animate(now) {
     }
     const focus=activeCar?activeCar.root.position:mara.root.position;
     if(!testManual){updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
-    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar,state.cameraView==='first'&&viewBlend>.5?.38:1);updateBodyVisual(dt);}
+    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar,state.cameraView==='first'&&viewBlend>.5?.38:1);updateBodyVisual(dt);helicopter.update(dt,focus,night,activeCar?.heading??mara.root.rotation.y);}
     else night=graphics.updateDay(state.minutes,focus,materials);
     rain.update(dt,graphics.camera);lanterns.update(elapsed);
     hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
@@ -284,7 +292,8 @@ Object.defineProperty(window,'velvet',{value:{
     rainCount:rain.count,lanternCount:lanterns.count,postfx:postfx.info(),
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
     bayInteriors:vehicles.cars.map(c=>c.interior?c.interior.visible:null),policeInteriors:police.cars.map(c=>c.interior?c.interior.visible:null),trafficInteriors:traffic.cars.map(c=>c.interior?c.interior.visible:null),
-    trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
+    trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState,
+    helicopter:{active:helicopter.active,position:helicopter.root.position.toArray(),rotorSpeed:helicopter.mainRotor.rotation.y,searchlight:helicopter.searchlight.intensity>0}
   })
 },writable:false});
 
@@ -296,15 +305,15 @@ function testSnapshot(){
 function refreshTestHUD(){const focus=activeCar?activeCar.root.position:mara.root.position;hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);}
 Object.defineProperty(window,'__vhTest',{value:{
   setManual(value){testManual=!!value;accumulator=0;snapInterpolation();return testManual;},
-  step(count=1){
-    if(!testManual)throw new Error('Enable manual test mode before stepping');
-    if(!Number.isInteger(count)||count<0||count>600)throw new TypeError('Test steps must be an integer from 0 to 600');
-    for(let i=0;i<count;i++){stepSimulation();updateBodyVisual(FIXED_STEP);const focus=activeCar?activeCar.root.position:mara.root.position;updateCamera(FIXED_STEP,focus);}
-    collectSimEntities();for(const entity of simEntities)applyInterpolation(entity,1);refreshTestHUD();return window.velvet.inspect();
-  },
-  forceWanted(level){
-    police.forceWanted(level);const focus=activeCar?activeCar.root.position:mara.root.position;police.update(0,focus,activeCar,0);refreshTestHUD();return testSnapshot();
-  },
+step(count=1){
+      if(!testManual)throw new Error('Enable manual test mode before stepping');
+      if(!Number.isInteger(count)||count<0||count>600)throw new TypeError('Test steps must be an integer from 0 to 600');
+      for(let i=0;i<count;i++){stepSimulation();updateBodyVisual(FIXED_STEP);const focus=activeCar?activeCar.root.position:mara.root.position;updateCamera(FIXED_STEP,focus);night=graphics.updateDay(state.minutes,focus,materials);helicopter.update(FIXED_STEP,focus,night,activeCar?.heading??mara.root.rotation.y);}
+      collectSimEntities();for(const entity of simEntities)applyInterpolation(entity,1);refreshTestHUD();return window.velvet.inspect();
+    },
+    forceWanted(level){
+      police.forceWanted(level);const focus=activeCar?activeCar.root.position:mara.root.position;police.update(0,focus,activeCar,0);helicopter.update(0,focus,night,activeCar?.heading??mara.root.rotation.y);refreshTestHUD();return testSnapshot();
+    },
   advanceTime(seconds){
     if(!Number.isFinite(seconds)||seconds<0)throw new TypeError('Fake time must be a finite, non-negative number');
     let remaining=seconds;while(remaining>1e-10){const step=Math.min(1/60,remaining),focus=activeCar?activeCar.root.position:mara.root.position;police.update(0,focus,activeCar,step);remaining-=step;}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-23 — Milestone 5: pursuit — Sky Patrol helicopter + Saltgilt Dispatch subtitles + news ticker (Nemotron 3 Ultra)
+
+- **Sky Patrol helicopter** (new `game/src/helicopter.js`, 139 lines; `game/src/main.js` import + create + update call + `velvet.inspect()` exposure): appears at wanted 5, follows the player from ~40 m up (slow circling, rotor spins — measured `rotorSpeed` 427.9), leaves when wanted drops below 5. Listens to the existing `velvet:wanted-change` event (`helicopterRequired`); `police.js` untouched.
+- **Searchlight, night only** (user rule): cone + ground pool active only when the game's `night` flag is on (18:30 blue hour counts as dark); verified live `searchlight: true`, intensity 12000 at night.
+- **Saltgilt Dispatch subtitles + news ticker** (`game/src/hud.js`, `game/index.html`): dispatch line "SALTGILT DISPATCH: WANTED LEVEL 5 — SKY PATROL INBOUND"; ticker bar with 2 distinct messages (dispatch + "SALTGILT PD: ALL UNITS RESPOND TO CODE 3 ON PEARLWAKE BOULEVARD").
+- **Build history**: Nemotron built it under v18; killed by VM restart #17 at 17:38 WITA while polishing geometry — no final report; coordinator verified independently.
+- Verification (coordinator, independent): Playwright **PASS exit 0** (heli appears, tracks, searchlight on, dispatch shown, ticker 2 messages, heli leaves at wanted 0; **0/0/0 errors**). Tests **10/10**, `tsc` **0 errors**, `node main.ts` **exit 0** (dossier **807,202 B**), `makefun check` **5 passed, 0 failed**. Bundle **621,209 B, sha256 `954b78bc…`** (same bundle as the 3e commit — it already contained the pursuit code; this commit adds the sources). Screenshots eye-checked: `m5-heli-chase.jpg` (`ae31e865…`, close-up, heli large centre-frame) + `m5-ticker.jpg` (`361474f3…`, both ticker messages readable). Honest note: the searchlight beam is proven by inspect data, not by a visible beam in the still. Full numbers in QA.md (Milestone 5 section).
+
 ## 2026-11-23 — Milestone 3e: beachfront — Giltwheel Fair + Ironshore Fitness + beach umbrellas (GLM Flash finish2)
 
 - **Giltwheel Fair** (`game/src/world.js`, west sand (-196,278)): Ferris wheel "Giltwheel" (rim r=14, 8 spokes, 8 neon gondolas cyan/magenta), 3 stalls, sign 'GILTWHEEL FAIR'; wheel turns slowly via the `createCity` update hook. Collision on supports + stalls; walkable underneath.
