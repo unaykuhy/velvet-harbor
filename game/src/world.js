@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { seededRandom, standard,surfaceMaterial } from './render.js';
+import { buildCitizen } from './peds.js';
 
 export const avenues = [-240,-160,-80,0,80,160,240];
 export function districtAt(x,z) {
@@ -49,6 +50,8 @@ export function createCity(scene, mat) {
         box(axis+side*10.1,.13,center,.22,.22,length,mat.trim);box(center,.13,axis+side*10.1,length,.22,.22,mat.trim);
       }
     }
+    for(const cross of avenues) for(const sx of [-1,1]) for(const sz of [-1,1])
+      ground(axis+sx*16,cross+sz*16,12,12,mat.sidewalk,.14);
     for(let p=-272;p<276;p+=9) {
       if(avenues.every(a=>Math.abs(p-a)>15)) {
         box(axis,.045,p,.15,.025,4.4,mat.yellow);box(p,.05,axis,4.4,.025,.15,mat.yellow);
@@ -123,6 +126,10 @@ export function createCity(scene, mat) {
       cylinder(cx,1.4,cz,.5,.8,1.3,mat.trim);continue;
     }
     const downtown=ix>=2&&ix<=3&&iz<=3;
+    // Pave every non-plaza block with sidewalk so the 49x49 grass pads between the
+    // perimeter sidewalk strips become continuous paved ground (user: "ganti dengan
+    // trotoar juga agar tersambung"); buildings and block contents sit on top.
+    ground(cx,cz,49,49,mat.sidewalk,.13);
     const suburb=ix<2&&iz<4;
     const dock=ix>=4&&iz<3;
     if(dock) {
@@ -253,6 +260,43 @@ export function createCity(scene, mat) {
     if(avenues.some(a=>Math.abs(z-a)<16))continue;
     cylinder(x,3.7,z,.07,.13,7.4,mat.steel);box(x+1.05,7.4,z,2.2,.12,.15,mat.steel);
     box(x+1.9,7.3,z,.7,.12,.5,mat.lamp);lampPositions.push(new T.Vector3(x+1.9,7,z));
+  }
+  // Real bench geometry (user 2026-11-22 ~21:14 WITA: "bangku"): seat, backrest and
+  // two steel legs with a proper collider. Sitting behaviour is milestone 4 — here it
+  // is placement only, along Pearlwake Boulevard and on both plaza parks.
+  function bench(x,z,ry=0) {
+    const s=Math.sin(ry),c=Math.cos(ry);
+    box(x,.52,z,2.1,.1,.55,mat.trim,ry);
+    box(x-s*.24,.88,z-c*.24,2.1,.55,.1,mat.trim,ry);
+    box(x+c*.8,.25,z-s*.8,.12,.5,.55,mat.steel,ry);box(x-c*.8,.25,z+s*.8,.12,.5,.55,mat.steel,ry);
+    const along=Math.abs(Math.sin(ry))>.5;
+    solid(x,z,along?.6:2.1,along?2.1:.6,.62);
+  }
+  for(let z=-244;z<=244;z+=48) if(avenues.every(a=>Math.abs(z-a)>16)) {
+    bench(12.6,z,Math.PI/2);bench(-12.6,z,-Math.PI/2);
+  }
+  for(const [px,pz] of [[40,200],[-200,-40]]) {
+    bench(px+9,pz,-Math.PI/2);bench(px-9,pz,Math.PI/2);bench(px,pz+9,Math.PI);bench(px,pz-9,0);
+  }
+  // Full corner audit dressing (user 2026-11-22 ~21:47-21:52 WITA): every intersection
+  // corner gets a planter with flowers, a corner lamp or a bush cluster, so no corner
+  // reads bare. Off the 4-wide walk strips (at axis±12) and inside the block edge.
+  let cornerIndex=0;
+  for(const ax of avenues)for(const az of avenues)for(const sx of [-1,1])for(const sz of [-1,1]) {
+    const x=ax+sx*15.3,z=az+sz*15.3,kind=cornerIndex++%3;
+    if(kind===0) {
+      box(x,.32,z,1.5,.55,1.5,mat.trim);solid(x,z,1.5,1.5,.6);
+      for(let f=-.45;f<=.45;f+=.3)for(let g=-.45;g<=.45;g+=.3)
+        bake(new T.SphereGeometry(.22,7,5),(f===0&&g===0)?mat.pink:mat.yellow,x+f,.67,z+g);
+    } else if(kind===1) {
+      cylinder(x,.45,z,.09,.14,1.7,mat.steel);solid(x,z,.5,.5,1.7);
+      box(x+sx*1.15,1.5,z,1.6,.12,.16,mat.steel);box(x+sx*1.95,1.44,z,.5,.12,.42,mat.lamp);
+      lampPositions.push(new T.Vector3(x+sx*1.95,1.2,z));
+    } else {
+      cylinder(x,.32,z,.5,.7,.6,mat.trim);solid(x,z,1.1,1.1,.62);
+      bake(new T.SphereGeometry(.65,9,7),mat.leaf,x,.95,z);
+      bake(new T.SphereGeometry(.4,8,6),mat.leaf,x+.55,.75,z+.2);
+    }
   }
   for(let z=98;z<225;z+=24) {
     for(const x of [-14,14]){
