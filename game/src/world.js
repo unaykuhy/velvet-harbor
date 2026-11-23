@@ -162,33 +162,38 @@ export function createCity(scene, mat) {
   const housingCenterX = -160;
   const housingCenterZ = 40;
   const roundaboutR = 11;
-  const houseCircleR = 14;
+  const houseCircleR = 16;
   // Roundabout: circular drive + central island
   const ringGeo = new T.RingGeometry(roundaboutR, roundaboutR + 5.5, 32);
   ringGeo.rotateX(-Math.PI / 2);
   bake(ringGeo, mat.asphalt, housingCenterX, 0.02, housingCenterZ);
-  solid(housingCenterX, housingCenterZ, roundaboutR * 2 + 11, roundaboutR * 2 + 11, 0.3);
   // Central island with grass + pine
   cylinder(housingCenterX, 0.35, housingCenterZ, roundaboutR - 0.5, roundaboutR - 0.5, 0.6, mat.grass, 24);
-  solid(housingCenterX, housingCenterZ, roundaboutR * 2 - 1, roundaboutR * 2 - 1, 0.6);
+  solid(housingCenterX, housingCenterZ, (roundaboutR - 0.5) * Math.SQRT2, (roundaboutR - 0.5) * Math.SQRT2, 0.6);
   cylinder(housingCenterX, 2.5, housingCenterZ, 0.55, 0.75, 5, mat.trunk);
   bake(new T.ConeGeometry(2.2, 4.5, 8), mat.leaf, housingCenterX, 5.5, housingCenterZ);
   solid(housingCenterX, housingCenterZ, 1.1, 1.1, 5);
   // 8 houses around the roundabout
   const housePositions = [];
   for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const hx = housingCenterX + Math.sin(angle) * houseCircleR;
-    const hz = housingCenterZ + Math.cos(angle) * houseCircleR;
+    // Rotate circle by π/8 so the south direction (180°) falls between houses
+    const angle = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    let hx = housingCenterX + Math.sin(angle) * houseCircleR;
+    let hz = housingCenterZ + Math.cos(angle) * houseCircleR;
+    // Shift houses flanking the south exit (i=3 @157.5°, i=4 @202.5°) radially outward 2 m
+    if (i === 3 || i === 4) {
+      hx += Math.sin(angle) * 2;
+      hz += Math.cos(angle) * 2;
+    }
     const ry = angle + Math.PI; // face centre
-    housePositions.push({ x: hx, z: hz, ry, num: i + 1 });
+    housePositions.push({ x: hx, z: hz, ry, num: i + 1, noFence: i === 3 || i === 4 });
   }
   // Shared materials for houses
   const hedgeMat = standard('#2d5a27', 0.9);
   const gravelMat = standard('#6b6b6b', 0.95);
   const windowMat = standard('#356c7c', 0.3, 0.4);
   // House prototype: dark roof, cream walls, hedge fence, yard, driveway, trees
-  function buildHouse(x, z, ry, num) {
+  function buildHouse(x, z, ry, num, noFence) {
     const w = 7.5, d = 9, h = 4.2;
     const halfW = w / 2, halfD = d / 2;
     const c = Math.cos(ry), s = Math.sin(ry);
@@ -211,7 +216,7 @@ export function createCity(scene, mat) {
       box(wx, 2.1, wz, 1.6, 1.4, 0.08, windowMat, ry);
       box(wx, 2.1, wz - s * 3.2, 1.6, 1.4, 0.08, windowMat, ry);
     }
-    // Hedge fence around yard (rectangle 11x13, house centred)
+    // Hedge fence around yard (rectangle 11x13, house centred) — visual only, no collision solid
     const fenceW = 11, fenceD = 13;
     for (let offset = -fenceW / 2; offset <= fenceW / 2; offset += 1.2) {
       const fx1 = x + c * (fenceD / 2) + s * offset;
@@ -229,12 +234,11 @@ export function createCity(scene, mat) {
       const fz2 = z + s * offset + c * (fenceW / 2);
       cylinder(fx2, 0.55, fz2, 0.35, 0.3, 1.1, hedgeMat);
     }
-    solid(x, z, fenceW, fenceD, 1.1);
     // Driveway from house to roundabout (gravel strip)
-    const driveLen = houseCircleR - fenceD / 2 - 0.5;
+    const driveLen = houseCircleR - (noFence ? d / 2 : fenceD / 2) - 0.5;
     for (let t = 0; t < driveLen; t += 0.8) {
-      const dx = x - c * (fenceD / 2 + 0.4 + t);
-      const dz = z - s * (fenceD / 2 + 0.4 + t);
+      const dx = x - c * ((noFence ? d / 2 : fenceD / 2) + 0.4 + t);
+      const dz = z - s * ((noFence ? d / 2 : fenceD / 2) + 0.4 + t);
       box(dx, 0.06, dz, 2.2, 0.12, 0.8, gravelMat, ry);
     }
     // Yard trees (pine) at fence corners
@@ -243,13 +247,13 @@ export function createCity(scene, mat) {
       const tz = z + s * oz - c * ox;
       cylinder(tx, 1.8, tz, 0.25, 0.35, 3.6, mat.trunk);
       bake(new T.ConeGeometry(1.3, 3.2, 7), mat.leaf, tx, 4.2, tz);
-      solid(tx, tz, 0.7, 0.7, 3.6);
+      if (!noFence) solid(tx, tz, 0.7, 0.7, 3.6);
     }
     // House number sign on porch
     const sx = px + c * 0.2, sz = pz + s * 0.2;
     sign(String(num), sx, 1.8, sz, 1.8, '#f3d8ad', ry);
   }
-  housePositions.forEach(p => buildHouse(p.x, p.z, p.ry, p.num));
+  housePositions.forEach(p => buildHouse(p.x, p.z, p.ry, p.num, p.noFence));
   // Exit road: from roundabout south edge to avenue at z=-80
   const roadStartZ = housingCenterZ - (roundaboutR + 5.5);
   const roadEndZ = -80;
@@ -286,19 +290,21 @@ export function createCity(scene, mat) {
   const gardenW = 36, gardenD = 32;
   const flowerBlue = standard('#5fd6ff');
   const flowerMagenta = standard('#ff6ec7');
-  // Garden ground (grass + paths)
-  ground(gardenCenterX, gardenCenterZ, gardenW, gardenD, mat.grass, 0.05);
-  // Central circular path around fountain
+  // Garden ground: grass on WEST and EAST lawns only — the exit-road corridor (x -164..-156) stays asphalt
+  ground(gardenCenterX - 11, gardenCenterZ, 14, gardenD, mat.grass, 0.05);
+  ground(gardenCenterX + 11, gardenCenterZ, 14, gardenD, mat.grass, 0.05);
+  // Central circular path around fountain (fountain on west lawn, clear of the road corridor)
+  const fountainX = gardenCenterX - 13;
   const pathR = 6;
   const pathRing = new T.RingGeometry(pathR, pathR + 2.5, 24);
   pathRing.rotateX(-Math.PI / 2);
-  bake(pathRing, mat.sidewalk, gardenCenterX, 0.1, gardenCenterZ);
+  bake(pathRing, mat.sidewalk, fountainX, 0.1, gardenCenterZ);
   // Fountain at centre
-  cylinder(gardenCenterX, 0.45, gardenCenterZ, 1.8, 1.8, 0.6, mat.trim, 24);
-  cylinder(gardenCenterX, 1.15, gardenCenterZ, 1.2, 1.2, 0.3, mat.trim, 24);
-  cylinder(gardenCenterX, 1.8, gardenCenterZ, 0.6, 0.6, 0.8, mat.trim, 24);
-  cylinder(gardenCenterX, 2.3, gardenCenterZ, 0.15, 0.2, 1.2, mat.steel);
-  solid(gardenCenterX, gardenCenterZ, 3.6, 3.6, 2.5);
+  cylinder(fountainX, 0.45, gardenCenterZ, 1.8, 1.8, 0.6, mat.trim, 24);
+  cylinder(fountainX, 1.15, gardenCenterZ, 1.2, 1.2, 0.3, mat.trim, 24);
+  cylinder(fountainX, 1.8, gardenCenterZ, 0.6, 0.6, 0.8, mat.trim, 24);
+  cylinder(fountainX, 2.3, gardenCenterZ, 0.15, 0.2, 1.2, mat.steel);
+  solid(fountainX, gardenCenterZ, 3.6, 3.6, 2.5);
   // Flower beds in four quadrants
   const flowerColors = [mat.pink, mat.yellow, flowerBlue, flowerMagenta];
   for (let q = 0; q < 4; q++) {
@@ -318,7 +324,7 @@ export function createCity(scene, mat) {
   // Garden lamps on path ring
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    const lx = gardenCenterX + Math.sin(a) * (pathR + 1.25);
+    const lx = fountainX + Math.sin(a) * (pathR + 1.25);
     const lz = gardenCenterZ + Math.cos(a) * (pathR + 1.25);
     cylinder(lx, 2.1, lz, 0.06, 0.11, 4.2, mat.steel);
     box(lx + 0.5, 4.2, lz, 1.4, 0.1, 0.12, mat.steel);
@@ -329,20 +335,28 @@ export function createCity(scene, mat) {
   // Benches on path ring (facing fountain)
   for (let i = 0; i < 8; i += 2) {
     const a = (i / 8) * Math.PI * 2;
-    const bx = gardenCenterX + Math.sin(a) * (pathR + 2.8);
+    const bx = fountainX + Math.sin(a) * (pathR + 2.8);
     const bz = gardenCenterZ + Math.cos(a) * (pathR + 2.8);
     bench(bx, bz, a + Math.PI);
   }
-  // Hedge perimeter around garden
+  // Hedge perimeter around garden — leave a gap where the exit road crosses (|x+160| < 4.5)
   for (let x = -gardenW/2; x <= gardenW/2; x += 1.1) {
-    cylinder(gardenCenterX + x, 0.55, gardenCenterZ - gardenD/2, 0.35, 0.3, 1.1, hedgeMat);
-    cylinder(gardenCenterX + x, 0.55, gardenCenterZ + gardenD/2, 0.35, 0.3, 1.1, hedgeMat);
+    if (Math.abs(x) >= 4.5) {
+      cylinder(gardenCenterX + x, 0.55, gardenCenterZ - gardenD/2, 0.35, 0.3, 1.1, hedgeMat);
+      cylinder(gardenCenterX + x, 0.55, gardenCenterZ + gardenD/2, 0.35, 0.3, 1.1, hedgeMat);
+    }
   }
   for (let z = -gardenD/2 + 1.1; z < gardenD/2; z += 1.1) {
     cylinder(gardenCenterX - gardenW/2, 0.55, gardenCenterZ + z, 0.35, 0.3, 1.1, hedgeMat);
     cylinder(gardenCenterX + gardenW/2, 0.55, gardenCenterZ + z, 0.35, 0.3, 1.1, hedgeMat);
   }
-  solid(gardenCenterX, gardenCenterZ, gardenW, gardenD, 1.1);
+  // Garden perimeter colliders: 4 strips, open across the road corridor (x -164..-156)
+  solid(gardenCenterX - 11, gardenCenterZ - gardenD/2, 14, 1.5, 1.1);
+  solid(gardenCenterX + 11, gardenCenterZ - gardenD/2, 14, 1.5, 1.1);
+  solid(gardenCenterX - 11, gardenCenterZ + gardenD/2, 14, 1.5, 1.1);
+  solid(gardenCenterX + 11, gardenCenterZ + gardenD/2, 14, 1.5, 1.1);
+  solid(gardenCenterX - gardenW/2, gardenCenterZ, 1.5, gardenD, 1.1);
+  solid(gardenCenterX + gardenW/2, gardenCenterZ, 1.5, gardenD, 1.1);
   // GAPURA: Art Deco gate arch at south entrance of Marigold Gardens (z≈-76)
   const gapuraZ = -76;
   const gapuraX = housingCenterX;
@@ -378,8 +392,7 @@ export function createCity(scene, mat) {
   box(gapuraX, 6.8, gapuraZ + 1.05, 9.0, 0.06, 0.12, mat.neonCyan);
   box(gapuraX, 6.8, gapuraZ - 1.05, 9.0, 0.06, 0.12, mat.neonMagenta);
   // Road continues through gate to avenue (already covered by exit road ground)
-  // Gate collision (arch span)
-  solid(gapuraX, gapuraZ, 9.2, 2.0, 7.5);
+  // NOTE: no span collider under the arch — the plinths at the road edges already block, cars pass under
   // Pine trees along exit road (west side, between roundabout and garden)
   for (let zz = roadStartZ - 8; zz > gardenCenterZ + gardenD/2 + 4; zz -= 10) {
     const tx = housingCenterX - roadW/2 - 5.5;

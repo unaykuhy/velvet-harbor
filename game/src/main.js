@@ -14,6 +14,8 @@ import {createPolice} from './police.js';
 import {createRain,createLanterns} from './weather.js';
 import {createPostFX} from './postfx.js';
 import {createHelicopter} from './helicopter.js';
+import {createMissions} from './missions.js';
+import {createCombat} from './combat.js';
 
 const graphics=createRenderer(),materials=makeMaterials();
 const postfx=createPostFX(graphics.renderer,graphics.scene,graphics.camera);
@@ -25,6 +27,8 @@ const traffic=createTraffic(graphics.scene,vehicles);
 const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
 police.onWantedChange(detail=>window.dispatchEvent(new CustomEvent('velvet:wanted-change',{detail})));
 const helicopter=createHelicopter(graphics.scene);
+const combat=createCombat(mara,graphics.scene,world,hud,police,audio);
+const missions=createMissions(graphics.scene,world,hud,minimap,mara,police,combat);
 window.addEventListener('velvet:wanted-change',e=>{
   helicopter.setActive(e.detail.helicopterRequired,night);
   const prev=e.detail.previous,wanted=e.detail.wanted;
@@ -33,6 +37,7 @@ window.addEventListener('velvet:wanted-change',e=>{
 });
 const pedestrians=createPedestrians(graphics.scene,world,traffic,()=>police.offence('pedestrian',activeCar.root.position));
 const state={money:2450,health:100,armor:50,minutes:18*60+30,cameraView:'chase'};
+mara.state=state;
 const el=id=>document.getElementById(id);
 let mode='start',activeCar=null,shake=0,elapsed=0,lastSave=0,lastTime=performance.now(),frames=0;
 let cameraReady=false,night=0;
@@ -116,6 +121,7 @@ function stepSimulation(){
   traffic.update(FIXED_STEP,activeCar,focus,pedestrians.people);
   police.update(FIXED_STEP,focus,activeCar,FIXED_STEP,playerHeading);
   pedestrians.update(FIXED_STEP,activeCar,focus,[...vehicles.cars,...police.cars]);
+  missions.update(FIXED_STEP,focus,input);
   for(const entity of simEntities)simStepEnd(entity);
 }
 const initialCars=vehicles.cars.map(car=>({position:car.root.position.clone(),heading:car.heading}));
@@ -257,7 +263,8 @@ function animate(now) {
     }
     const focus=activeCar?activeCar.root.position:mara.root.position;
     if(!testManual){updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
-    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar,state.cameraView==='first'&&viewBlend>.5?.38:1);updateBodyVisual(dt);helicopter.update(dt,focus,night,activeCar?.heading??mara.root.rotation.y);}
+    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar,state.cameraView==='first'&&viewBlend>.5?.38:1);updateBodyVisual(dt);helicopter.update(dt,focus,night,activeCar?.heading??mara.root.rotation.y);
+    combat.update(dt,missions.getCombatEnemies(),graphics.camera,input);}
     else night=graphics.updateDay(state.minutes,focus,materials);
     rain.update(dt,graphics.camera);lanterns.update(elapsed);
     hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
@@ -308,7 +315,7 @@ Object.defineProperty(window,'__vhTest',{value:{
 step(count=1){
       if(!testManual)throw new Error('Enable manual test mode before stepping');
       if(!Number.isInteger(count)||count<0||count>600)throw new TypeError('Test steps must be an integer from 0 to 600');
-      for(let i=0;i<count;i++){stepSimulation();updateBodyVisual(FIXED_STEP);const focus=activeCar?activeCar.root.position:mara.root.position;updateCamera(FIXED_STEP,focus);night=graphics.updateDay(state.minutes,focus,materials);helicopter.update(FIXED_STEP,focus,night,activeCar?.heading??mara.root.rotation.y);}
+      for(let i=0;i<count;i++){stepSimulation();updateBodyVisual(FIXED_STEP);const focus=activeCar?activeCar.root.position:mara.root.position;updateCamera(FIXED_STEP,focus);night=graphics.updateDay(state.minutes,focus,materials);helicopter.update(FIXED_STEP,focus,night,activeCar?.heading??mara.root.rotation.y);combat.update(FIXED_STEP,missions.getCombatEnemies(),graphics.camera,input);}
       collectSimEntities();for(const entity of simEntities)applyInterpolation(entity,1);refreshTestHUD();return window.velvet.inspect();
     },
     forceWanted(level){

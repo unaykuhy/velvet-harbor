@@ -13,6 +13,8 @@ export function createHUD() {
   let tickerIndex=0;
   let tickerOffset=0;
   let tickerSpeed=30;
+  let dialogueUntil=0;
+  let endingScreen=false;
 
   function toast(text){el('toast').textContent=text;el('toast').classList.remove('hidden');toastUntil=performance.now()+3500;}
 
@@ -22,6 +24,68 @@ export function createHUD() {
     dispatchUntil=performance.now()+6000;
     tickerMessages.unshift(`SALTGILT DISPATCH: ${text}`);
     if(tickerMessages.length>10)tickerMessages.pop();
+  }
+
+  function setObjective(text) {
+    const objEl = el('objective-text');
+    if (objEl) objEl.textContent = text;
+  }
+
+  function showDialogue(text) {
+    const dlgEl = el('dialogue');
+    if (dlgEl) {
+      dlgEl.textContent = text;
+      dlgEl.classList.remove('hidden');
+      dialogueUntil = performance.now() + 4000;
+    }
+  }
+
+  function hideDialogue() {
+    const dlgEl = el('dialogue');
+    if (dlgEl) dlgEl.classList.add('hidden');
+  }
+
+  function showEndingScreen() {
+    endingScreen = true;
+    const endEl = el('ending-screen');
+    if (endEl) endEl.classList.remove('hidden');
+  }
+
+  function updateAmmo(count) {
+    const ammoEl = el('ammo');
+    if (ammoEl) ammoEl.textContent = `AMMO ${count} / 36`;
+  }
+
+  function fadeToBlack(callback) {
+    const overlay = el('fade-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.style.opacity = '0';
+      overlay.style.transition = 'opacity 0.5s ease';
+      requestAnimationFrame(() => {
+        overlay.style.opacity = '1';
+        setTimeout(() => {
+          if (callback) callback();
+          setTimeout(() => {
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.classList.add('hidden'), 500);
+          }, 100);
+        }, 500);
+      });
+    }
+  }
+
+  function fadeFromBlack() {
+    const overlay = el('fade-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.style.opacity = '1';
+      overlay.style.transition = 'opacity 0.5s ease';
+      requestAnimationFrame(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.classList.add('hidden'), 500);
+      });
+    }
   }
 
   function update(state,position,car,nearest,wanted=0,searching=false) {
@@ -66,7 +130,8 @@ export function createHUD() {
     }
 
     if(performance.now()>toastUntil)el('toast').classList.add('hidden');
+    if(performance.now()>dialogueUntil)hideDialogue();
   }
 
-  return {update,toast,show(value){el('hud').classList.toggle('hidden',!value);},dispatch};
+  return {update,toast,show(value){el('hud').classList.toggle('hidden',!value);},dispatch,setObjective,showDialogue,hideDialogue,showEndingScreen,updateAmmo,fadeToBlack,fadeFromBlack};
 }

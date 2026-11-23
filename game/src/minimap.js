@@ -1,4 +1,5 @@
 import {avenues} from './world.js';
+let missionMarker=null,objectiveMarker=null;
 export function createMinimap(world) {
   const canvas=document.querySelector('#minimap'),ctx=canvas.getContext('2d');
   function draw(position,yaw,cars,active,police=[]) {
@@ -13,9 +14,15 @@ export function createMinimap(world) {
     ctx.fillStyle='#9aab99';for(const b of world.mapBuildings)ctx.fillRect(b.x-b.w/2,b.z-b.d/2,b.w,b.d);
     for(const car of cars)if(car!==active&&car.root.position.distanceTo(position)<170){ctx.fillStyle='#f4c18c';ctx.beginPath();ctx.arc(car.root.position.x,car.root.position.z,3.3/s,0,Math.PI*2);ctx.fill();}
     for(const car of police)if(car.root.position.distanceTo(position)<180){const p=car.root.position;ctx.fillStyle=Math.floor(performance.now()/180)%2?'#ff6859':'#58acff';ctx.strokeStyle='#edf9ff';ctx.lineWidth=1.5;ctx.fillRect(p.x-4,p.z-4,8,8);ctx.strokeRect(p.x-4,p.z-4,8,8);}
+    if(missionMarker){ctx.save();ctx.translate(missionMarker.x,missionMarker.z);ctx.rotate(Math.PI/4);ctx.fillStyle='#f2c091';ctx.strokeStyle='#16323a';ctx.lineWidth=1.2;ctx.fillRect(-5,-5,10,10);ctx.strokeRect(-5,-5,10,10);ctx.restore();}
+    if(objectiveMarker){const pulse=9+Math.sin(performance.now()/200)*1.5;ctx.beginPath();ctx.arc(objectiveMarker.x,objectiveMarker.z,pulse,0,Math.PI*2);ctx.strokeStyle='#f4c18c';ctx.lineWidth=2.5;ctx.stroke();}
     ctx.restore();
     ctx.fillStyle='#fff7dc';ctx.strokeStyle='#16323a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(180,168);ctx.lineTo(172,190);ctx.lineTo(180,185);ctx.lineTo(188,190);ctx.closePath();ctx.stroke();ctx.fill();
     ctx.save();ctx.translate(180,180);ctx.rotate(yaw);ctx.fillStyle='#fff3d4';ctx.font='bold 17px Arial';ctx.textAlign='center';ctx.fillText('N',0,-151);ctx.restore();
   }
-  return {draw};
+  return {draw,
+    addMissionMarker(marker,id){missionMarker={x:marker.x,z:marker.z,id};},
+    addObjectiveMarker(target){objectiveMarker={x:target.x,z:target.z};},
+    clearObjectiveMarker(){objectiveMarker=null;},
+    clearMissionMarker(){missionMarker=null;}};
 }
