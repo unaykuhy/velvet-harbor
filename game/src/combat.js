@@ -120,6 +120,7 @@ export function createCombat(mara, scene, world, hud, police, audio) {
     pistolAmmo = Math.min(MAX_AMMO, pistolAmmo + amount);
     hasPistol = true;
     hud.updateAmmo(pistolAmmo);
+    hud.setWeapon('PISTOL');
     hud.toast(`Pistol ammo +${amount} (${pistolAmmo}/${MAX_AMMO})`);
   }
 
@@ -127,6 +128,7 @@ export function createCombat(mara, scene, world, hud, police, audio) {
     hasPistol = true;
     pistolAmmo = Math.max(pistolAmmo, 12);
     hud.updateAmmo(pistolAmmo);
+    hud.setWeapon('PISTOL');
     hud.toast('Pistol acquired');
   }
 

@@ -216,7 +216,7 @@ export function createCity(scene, mat) {
       box(wx, 2.1, wz, 1.6, 1.4, 0.08, windowMat, ry);
       box(wx, 2.1, wz - s * 3.2, 1.6, 1.4, 0.08, windowMat, ry);
     }
-    // Hedge fence around yard (rectangle 11x13, house centred) — visual only, no collision solid
+    // Hedge fence around yard (rectangle 11x13, house centred); non-flanking houses also block movement
     const fenceW = 11, fenceD = 13;
     for (let offset = -fenceW / 2; offset <= fenceW / 2; offset += 1.2) {
       const fx1 = x + c * (fenceD / 2) + s * offset;
@@ -234,6 +234,7 @@ export function createCity(scene, mat) {
       const fz2 = z + s * offset + c * (fenceW / 2);
       cylinder(fx2, 0.55, fz2, 0.35, 0.3, 1.1, hedgeMat);
     }
+    if (!noFence) solid(x, z, fenceW, fenceD, 1.1);
     // Driveway from house to roundabout (gravel strip)
     const driveLen = houseCircleR - (noFence ? d / 2 : fenceD / 2) - 0.5;
     for (let t = 0; t < driveLen; t += 0.8) {
@@ -961,15 +962,6 @@ export function createCity(scene, mat) {
   // Collision for train cars (added dynamically in update based on position)
   // Station collision already added via solid()
 
-  for(const batch of batches.values()) {
-    const geometry=mergeGeometries(batch.geometries,false);
-    const mesh=new T.Mesh(geometry,batch.material);mesh.castShadow=batch.material!==mat.asphalt&&batch.material!==mat.grass&&batch.material!==mat.sidewalk&&batch.material!==mat.sand;mesh.receiveShadow=[mat.asphalt,mat.grass,mat.sidewalk,mat.sand,mat.trim].includes(batch.material);scene.add(mesh);
-    for(const g of batch.geometries)g.dispose();
-  }
-  for(const [material,matrices] of repeatedBoxes){
-    const instances=new T.InstancedMesh(new T.BoxGeometry(1,1,1),material,matrices.length);
-    matrices.forEach((matrix,i)=>instances.setMatrixAt(i,matrix));scene.add(instances);
-  }
   const nightLights=[];
   for(let i=0;i<3;i++){const light=new T.PointLight('#ffd49b',0,21,2);scene.add(light);nightLights.push(light);}
   function update(time,night,focus) {
@@ -1084,9 +1076,328 @@ export function createCity(scene, mat) {
     if(x < -278 || z < -278 || z > 300 || (x>253&&Math.abs(z+80)>9) || x>378)return true;
     return colliders.some(c=>y<c.y+c.h&&Math.abs(x-c.x)<c.w/2+radius&&Math.abs(z-c.z)<c.d/2+radius);
   }
+  // ── MILESTONE 3 — SKYFERN AIRFIELD (centered near -200, 200) ──
+  // Runway east-west, terminal north of runway, access road from avenue at z=160.
+  const af = { x: -200, z: 200 };
+  const rwLen = 140, rwWid = 20;
+  const rwX0 = af.x - rwLen / 2, rwX1 = af.x + rwLen / 2;
+  const rwZ0 = af.z - rwWid / 2, rwZ1 = af.z + rwWid / 2;
+  const runwayMaterial = standard('#1a1a1a', 0.95);
+  const runwayMarkMaterial = standard('#ffffff', 0.9, 0.3);
+  const runwayMarkMaterialEmissive = standard('#ffffff', 0.1, 1.0);
+  runwayMarkMaterialEmissive.emissive = new T.Color('#ffffff');
+  runwayMarkMaterialEmissive.emissiveIntensity = 0.6;
+  // Runway surface (darker than avenues)
+  ground(af.x, af.z, rwLen, rwWid, runwayMaterial, 0.02);
+  // Centreline dashes
+  for (let xx = rwX0 + 10; xx < rwX1; xx += 12) {
+    box(xx, 0.035, af.z, 5, 0.02, 0.6, runwayMarkMaterialEmissive);
+  }
+  // Threshold markings at both ends
+  for (const endX of [rwX0 + 2, rwX1 - 2]) {
+    for (let i = 0; i < 6; i++) {
+      const oz = rwZ0 + 2 + i * 2.8;
+      box(endX, 0.035, oz, 6, 0.02, 1.2, runwayMarkMaterialEmissive);
+    }
+  }
+  // Runway numbers (canvas texture signs)
+  function runwaySign(text, x, z, rot) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#1a1a1a';
+    c.fillRect(0, 0, 256, 128);
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.font = 'bold 72px Arial';
+    c.fillText(text, 128, 64);
+    const tex = new T.CanvasTexture(canvas);
+    tex.colorSpace = T.SRGBColorSpace;
+    const mat = surfaceMaterial({ map: tex, roughness: 0.6, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.3 });
+    const mesh = new T.Mesh(new T.PlaneGeometry(8, 4), mat);
+    mesh.position.set(x, 0.04, z);
+    mesh.rotation.y = rot;
+    scene.add(mesh);
+  }
+  runwaySign('09', rwX0 + 12, af.z - 14, 0);
+  runwaySign('27', rwX1 - 12, af.z + 14, Math.PI);
+  // Edge lights (amber posts every 15u)
+  const lightPostMat = standard('#ffb340', 0.2, 1.0);
+  lightPostMat.emissive = new T.Color('#ffb340');
+  lightPostMat.emissiveIntensity = 0.8;
+  for (let xx = rwX0; xx <= rwX1; xx += 15) {
+    cylinder(xx, 0.6, rwZ0 - 0.8, 0.15, 0.15, 1.2, lightPostMat);
+    cylinder(xx, 0.6, rwZ1 + 0.8, 0.15, 0.15, 1.2, lightPostMat);
+  }
+  // RUNWAY MUST STAY CLEAR — no solid() on runway surface (drivable like avenues)
+
+  // Terminal: Art Deco building north of runway
+  const termX = af.x, termZ = af.z + 45;
+  const termW = 28, termD = 22, termH = 10;
+  solid(termX, termZ, termW, termD, termH);
+  box(termX, termH / 2, termZ, termW, termH, termD, mat.cream);
+  // Dark roof
+  box(termX, termH + 0.2, termZ, termW + 1, 0.4, termD + 1, mat.dark);
+  // Gold trim bands
+  const goldTrim = standard('#d8b34a', 0.8);
+  box(termX, 2.5, termZ, termW + 0.5, 0.3, termD + 0.5, goldTrim);
+  box(termX, termH - 1.5, termZ, termW + 0.5, 0.3, termD + 0.5, goldTrim);
+  // Glass front facing runway (south facade)
+  box(termX, termH / 2, termZ + termD / 2 + 0.05, termW - 2, termH - 2, 0.15, mat.glass);
+  // "SKYFERN" sign on terminal roof edge
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#153b43';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = '#d8b34a';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(8, 8, 496, 112);
+  ctx.fillStyle = '#d8b34a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 44px Arial';
+  ctx.fillText('SKYFERN', 256, 66);
+  const skyfernTex = new T.CanvasTexture(canvas);
+  skyfernTex.colorSpace = T.SRGBColorSpace;
+  const skyfernMat = surfaceMaterial({ map: skyfernTex, roughness: 0.6, emissive: '#d8b34a', emissiveMap: skyfernTex, emissiveIntensity: 0.35 });
+  const skyfernMesh = new T.Mesh(new T.PlaneGeometry(20, 5), skyfernMat);
+  skyfernMesh.position.set(termX, termH + 1, termZ + termD / 2 + 1.2);
+  skyfernMesh.rotation.y = Math.PI;
+  scene.add(skyfernMesh);
+  // Terminal entrance canopy
+  box(termX, 2.2, termZ + termD / 2 + 3.5, termW * 0.6, 0.2, 4, mat.trim);
+  for (const sx of [-1, 1]) cylinder(termX + sx * termW * 0.28, 1.2, termZ + termD / 2 + 3.5, 0.12, 0.12, 2.2, mat.steel);
+
+  // Control tower: tapered shaft + glass cab + antenna
+  const towerX = termX - 25, towerZ = termZ + 8;
+  cylinder(towerX, 9, towerZ, 3.5, 4.5, 18, mat.cream, 12);
+  solid(towerX, towerZ, 7, 7, 18);
+  // Gallery
+  cylinder(towerX, 18.5, towerZ, 4.2, 4.2, 1.2, mat.steel, 12);
+  box(towerX, 19.1, towerZ, 9, 0.2, 9, mat.trim);
+  // Glass cab
+  const towerCabGeo = new T.CylinderGeometry(3.2, 3.2, 4, 12);
+  const towerCabMat = standard('#1a3a4a', 0.15, 0.9);
+  const towerCab = new T.Mesh(towerCabGeo, towerCabMat);
+  towerCab.position.set(towerX, 22.5, towerZ);
+  towerCab.castShadow = true;
+  scene.add(towerCab);
+  // Cab roof
+  const towerCabRoof = new T.Mesh(new T.ConeGeometry(3.8, 1.5, 12), mat.steel);
+  towerCabRoof.position.set(towerX, 25.2, towerZ);
+  towerCabRoof.castShadow = true;
+  scene.add(towerCabRoof);
+  // Warm light in cab
+  const towerLight = new T.PointLight('#ffd49b', 0, 30, 2);
+  towerLight.position.set(towerX, 22, towerZ);
+  scene.add(towerLight);
+  // Antenna
+  cylinder(towerX, 28, towerZ, 0.08, 0.08, 6, mat.steel);
+  // Tower window lights
+  for (let fl = 4; fl < 16; fl += 4) {
+    for (let s = 0; s < 4; s++) {
+      const a = s * Math.PI / 2;
+      const wx = towerX + Math.sin(a) * 3.8;
+      const wz = towerZ + Math.cos(a) * 3.8;
+      const win = new T.Mesh(new T.BoxGeometry(1, 1, 0.1), mat.windowLight);
+      win.position.set(wx, fl, wz);
+      win.rotation.y = a;
+      scene.add(win);
+    }
+  }
+
+  // Hangars: 2 arched-roof hangars with big doors facing runway
+  const hangarPositions = [
+    { x: termX - 50, z: termZ - 5 },
+    { x: termX + 50, z: termZ - 5 }
+  ];
+  const hangarW = 24, hangarD = 20, hangarH = 9;
+  hangarPositions.forEach((hp, hi) => {
+    solid(hp.x, hp.z, hangarW, hangarD, hangarH);
+    // Base walls
+    box(hp.x, hangarH / 2, hp.z, hangarW, hangarH, hangarD, mat.steel);
+    // Arched roof (half-cylinder)
+    bake(new T.CylinderGeometry(hangarW / 2 * 1.05, hangarW / 2 * 1.05, hangarD, 16, 1, true), mat.steel, hp.x, hangarH, hp.z, Math.PI / 2);
+    // Big doors facing runway (south) - darker panels
+    box(hp.x, hangarH / 2, hp.z + hangarD / 2 + 0.1, hangarW - 2, hangarH - 1, 0.2, mat.dark);
+    // Side windows
+    for (let wx = -hangarW / 2 + 3; wx < hangarW / 2; wx += 6) {
+      box(hp.x + wx, 3.5, hp.z - hangarD / 2 + 0.1, 2, 2, 0.1, mat.glass);
+      box(hp.x + wx, 3.5, hp.z + hangarD / 2 - 0.1, 2, 2, 0.1, mat.glass);
+    }
+    // Neon trim on roof edge
+    const hangarTrim = hi === 0 ? mat.neonCyan : mat.neonMagenta;
+    box(hp.x, hangarH + 0.2, hp.z, hangarW + 1, 0.2, hangarD + 1, hangarTrim);
+  });
+
+  // Parked aircraft: 2-3 small propeller planes on apron
+  const planePositions = [
+    { x: termX - 30, z: termZ + 18, rot: -0.3 },
+    { x: termX + 10, z: termZ + 22, rot: 0.2 },
+    { x: termX + 40, z: termZ + 15, rot: 0.5 }
+  ];
+  const planeBodyMat = standard('#e8e8e8', 0.9);
+  const planeWindowMat = standard('#356c7c', 0.3, 0.5);
+  planePositions.forEach(p => {
+    const { x, z, rot } = p;
+    const c = Math.cos(rot), s = Math.sin(rot);
+    // Fuselage
+    const fuse = new T.Group();
+    fuse.position.set(x, 1.8, z);
+    fuse.rotation.y = rot;
+    const fuselage = new T.Mesh(new T.CylinderGeometry(0.6, 0.8, 7, 10), planeBodyMat);
+    fuselage.position.y = 0;
+    fuselage.castShadow = true;
+    fuse.add(fuselage);
+    // Nose cone
+    const nose = new T.Mesh(new T.ConeGeometry(0.8, 1.5, 10), planeBodyMat);
+    nose.position.set(0, 0, 4.2);
+    nose.rotation.x = -Math.PI / 2;
+    nose.castShadow = true;
+    fuse.add(nose);
+    // Tail cone
+    const tail = new T.Mesh(new T.ConeGeometry(0.5, 1.2, 8), planeBodyMat);
+    tail.position.set(0, 0, -3.5);
+    tail.rotation.x = Math.PI / 2;
+    tail.castShadow = true;
+    fuse.add(tail);
+    // Wings
+    const wingGeo = new T.BoxGeometry(8.5, 0.12, 2.2);
+    const wing = new T.Mesh(wingGeo, planeBodyMat);
+    wing.position.set(0, 0.1, -0.5);
+    wing.castShadow = true;
+    fuse.add(wing);
+    // Tail fin
+    const finGeo = new T.BoxGeometry(0.1, 1.8, 1.5);
+    const fin = new T.Mesh(finGeo, planeBodyMat);
+    fin.position.set(0, 1.8, -2.8);
+    fin.castShadow = true;
+    fuse.add(fin);
+    // Tail plane
+    const tplane = new T.Mesh(new T.BoxGeometry(3, 0.1, 0.8), planeBodyMat);
+    tplane.position.set(0, 1.4, -2.8);
+    tplane.castShadow = true;
+    fuse.add(tplane);
+    // Propeller (blurred disk)
+    const propGeo = new T.CylinderGeometry(1.8, 1.8, 0.08, 16);
+    const propMat = standard('#111111', 0.8, 0.3);
+    propMat.transparent = true;
+    propMat.opacity = 0.4;
+    const prop = new T.Mesh(propGeo, propMat);
+    prop.position.set(0, 0, 4.8);
+    prop.castShadow = true;
+    fuse.add(prop);
+    // Lit windows along fuselage
+    for (let wx = -2.5; wx <= 2.5; wx += 1.2) {
+      const win = new T.Mesh(new T.BoxGeometry(0.6, 0.4, 0.05), planeWindowMat);
+      win.position.set(wx, 0.2, 0);
+      win.rotation.y = Math.PI / 2;
+      fuse.add(win);
+    }
+    scene.add(fuse);
+    solid(x, z, 9, 3, 2);
+  });
+
+  // Perimeter fence around airfield rect
+  const fenceX0 = rwX0 - 30, fenceX1 = rwX1 + 30;
+  const fenceZ0 = rwZ0 - 10, fenceZ1 = termZ + termD / 2 + 25;
+  const fencePostMat = mat.steel;
+  const fenceWireMat = standard('#444444', 0.9);
+  // Fence posts and wires
+  for (let xx = fenceX0; xx <= fenceX1; xx += 4) {
+    if (!(xx > fenceX0 + 5 && xx < fenceX0 + 25 && Math.abs(fenceZ0 - (af.z - 45)) < 2)) { // gap at access road
+      cylinder(xx, 1.0, fenceZ0, 0.12, 0.12, 2.0, fencePostMat);
+      cylinder(xx, 1.0, fenceZ1, 0.12, 0.12, 2.0, fencePostMat);
+    }
+  }
+  for (let zz = fenceZ0; zz <= fenceZ1; zz += 4) {
+    if (!(zz > fenceZ0 && zz < fenceZ0 + 20 && Math.abs(fenceX0 - (af.x - 30)) < 2)) {
+      cylinder(fenceX0, 1.0, zz, 0.12, 0.12, 2.0, fencePostMat);
+      cylinder(fenceX1, 1.0, zz, 0.12, 0.12, 2.0, fencePostMat);
+    }
+  }
+  // Horizontal wires (3 strands)
+  for (let strand = 0; strand < 3; strand++) {
+    const yh = 0.5 + strand * 0.6;
+    for (let xx = fenceX0; xx < fenceX1; xx += 4) {
+      if (!(xx > fenceX0 + 5 && xx < fenceX0 + 25 && Math.abs(fenceZ0 - (af.z - 45)) < 2)) {
+        box(xx + 2, yh, fenceZ0, 4, 0.04, 0.04, fenceWireMat);
+        box(xx + 2, yh, fenceZ1, 4, 0.04, 0.04, fenceWireMat);
+      }
+    }
+    for (let zz = fenceZ0; zz < fenceZ1; zz += 4) {
+      if (!(zz > fenceZ0 && zz < fenceZ0 + 20 && Math.abs(fenceX0 - (af.x - 30)) < 2)) {
+        box(fenceX0, yh, zz + 2, 0.04, 0.04, 4, fenceWireMat);
+        box(fenceX1, yh, zz + 2, 0.04, 0.04, 4, fenceWireMat);
+      }
+    }
+  }
+  // Fence collision (solid strips, gap at access road)
+  solid(fenceX0, (fenceZ0 + fenceZ1) / 2, 1.5, fenceZ1 - fenceZ0, 2.0);
+  solid(fenceX1, (fenceZ0 + fenceZ1) / 2, 1.5, fenceZ1 - fenceZ0, 2.0);
+  solid((fenceX0 + af.x - 30) / 2, fenceZ0, af.x - 30 - fenceX0 + 5, 1.5, 2.0); // west segment
+  solid((af.x + 25 + fenceX1) / 2, fenceZ0, fenceX1 - (af.x + 25) + 5, 1.5, 2.0); // east segment
+  solid((fenceX0 + af.x - 30) / 2, fenceZ1, af.x - 30 - fenceX0 + 5, 1.5, 2.0);
+  solid((af.x + 25 + fenceX1) / 2, fenceZ1, fenceX1 - (af.x + 25) + 5, 1.5, 2.0);
+
+  // Access road: from avenue at z=160 north to terminal apron
+  const roadX = af.x;
+  const roadZ0 = 160, roadZ1 = termZ - termD / 2 - 10;
+  const accessRoadW = 8;
+  ground(roadX, (roadZ0 + roadZ1) / 2, accessRoadW, roadZ1 - roadZ0, mat.asphalt, 0.02);
+  // Sidewalks
+  ground(roadX - accessRoadW / 2 - 1.5, (roadZ0 + roadZ1) / 2, 1.5, roadZ1 - roadZ0, mat.sidewalk, 0.1);
+  ground(roadX + accessRoadW / 2 + 1.5, (roadZ0 + roadZ1) / 2, 1.5, roadZ1 - roadZ0, mat.sidewalk, 0.1);
+  // Centerline
+  for (let zz = roadZ0; zz < roadZ1; zz += 9) {
+    box(roadX, 0.045, zz, 0.15, 0.025, 4.4, mat.yellow);
+  }
+  // Street lamps along access road
+  for (let zz = roadZ0 + 10; zz < roadZ1; zz += 20) {
+    const lx = roadX + accessRoadW / 2 + 3;
+    cylinder(lx, 3.7, zz, 0.07, 0.13, 7.4, mat.steel);
+    box(lx + 1.05, 7.4, zz, 2.2, 0.12, 0.15, mat.steel);
+    box(lx + 1.9, 7.3, zz, 0.7, 0.12, 0.5, mat.lamp);
+    lampPositions.push(new T.Vector3(lx + 1.9, 7, zz));
+    solid(lx, zz, 0.25, 0.25, 7.4);
+  }
+  // Apron in front of terminal (connects to access road)
+  ground(termX, termZ + termD / 2 + 8, termW + 10, 20, mat.asphalt, 0.02);
+
+  // Sparse shade trees near terminal only (not on/near runway)
+  for (const [tx, tz] of [[termX - 18, termZ - 15], [termX + 18, termZ - 15], [termX - 22, termZ + 20]]) {
+    cylinder(tx, 1.8, tz, 0.4, 0.5, 5, mat.trunk);
+    bake(new T.SphereGeometry(3.5, 10, 8), mat.leaf, tx, 5.5, tz);
+    solid(tx, tz, 1.2, 1.2, 5);
+  }
+
+  // Flush batched static geometry into scene meshes (must run AFTER all bake/box/ground/cylinder calls)
+  for(const batch of batches.values()) {
+    const geometry=mergeGeometries(batch.geometries,false);
+    const mesh=new T.Mesh(geometry,batch.material);mesh.castShadow=batch.material!==mat.asphalt&&batch.material!==mat.grass&&batch.material!==mat.sidewalk&&batch.material!==mat.sand;mesh.receiveShadow=[mat.asphalt,mat.grass,mat.sidewalk,mat.sand,mat.trim].includes(batch.material);scene.add(mesh);
+    for(const g of batch.geometries)g.dispose();
+  }
+  for(const [material,matrices] of repeatedBoxes){
+    const instances=new T.InstancedMesh(new T.BoxGeometry(1,1,1),material,matrices.length);
+    matrices.forEach((matrix,i)=>instances.setMatrixAt(i,matrix));scene.add(instances);
+  }
+
+  // Expose airfield in __vhWorld hook
+  const airfield = {
+    runway: { x0: rwX0, x1: rwX1, z0: rwZ0, z1: rwZ1 },
+    terminal: { x: termX, z: termZ, w: termW, d: termD },
+    tower: { x: towerX, z: towerZ },
+    hangars: hangarPositions.map(h => ({ x: h.x, z: h.z, w: hangarW, d: hangarD })),
+    aircraft: planePositions.map(p => ({ x: p.x, z: p.z }))
+  };
+
   // Test hook for verification
-  if (typeof window !== 'undefined') window.__vhWorld = { blocked, update, monorail, lighthouse, tide, train, foodCarts };
-  return {blocked,update,mapBuildings,colliders,seed:73129,palms:palms.length,monorail,lighthouse,tide,train,foodCarts};
+  if (typeof window !== 'undefined') window.__vhWorld = { blocked, update, monorail, lighthouse, tide, train, foodCarts, airfield };
+  return {blocked,update,mapBuildings,colliders,seed:73129,palms:palms.length,monorail,lighthouse,tide,train,foodCarts,airfield};
 }
 
 export function bridgeHeight(x,z) {

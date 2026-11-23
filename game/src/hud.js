@@ -56,6 +56,11 @@ export function createHUD() {
     if (ammoEl) ammoEl.textContent = `AMMO ${count} / 36`;
   }
 
+  function setWeapon(name) {
+    const weaponEl = document.querySelector('.weapon');
+    if (weaponEl) weaponEl.textContent = name;
+  }
+
   function fadeToBlack(callback) {
     const overlay = el('fade-overlay');
     if (overlay) {
@@ -133,5 +138,5 @@ export function createHUD() {
     if(performance.now()>dialogueUntil)hideDialogue();
   }
 
-  return {update,toast,show(value){el('hud').classList.toggle('hidden',!value);},dispatch,setObjective,showDialogue,hideDialogue,showEndingScreen,updateAmmo,fadeToBlack,fadeFromBlack};
+  return {update,toast,show(value){el('hud').classList.toggle('hidden',!value);},dispatch,setObjective,showDialogue,hideDialogue,showEndingScreen,updateAmmo,setWeapon,fadeToBlack,fadeFromBlack};
 }
