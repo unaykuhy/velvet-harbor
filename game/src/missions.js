@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {districtAt} from './world.js';
 
-export function createMissions(scene, world, hud, minimap, mara, police, combat) {
+export function createMissions(scene, world, hud, minimap, mara, police, combat, onRespawnSnap) {
   const missions = [
     {
       id: 1,
@@ -295,7 +295,7 @@ export function createMissions(scene, world, hud, minimap, mara, police, combat)
       }
     } else if (obj.type === 'escort' && escortTarget) {
       if (dist < obj.radius) {
-        world.remove(escortTarget);
+        scene.remove(escortTarget);
         escortTarget = null;
         advanceObjective();
       }
@@ -346,14 +346,18 @@ export function createMissions(scene, world, hud, minimap, mara, police, combat)
       mara.root.position.copy(checkpoint);
       mara.root.position.y = 1;
     }
-    snapInterpolation();
+    if (typeof onRespawnSnap === 'function') onRespawnSnap();
   }
 
+  let dying = false;
+
   function onPlayerDeath() {
-    if (!missionActive) return;
+    if (!missionActive || dying) return;
+    dying = true;
     hud.fadeToBlack(() => {
       respawnAtHospital();
       hud.fadeFromBlack();
+      dying = false;
     });
   }
 
@@ -373,7 +377,7 @@ export function createMissions(scene, world, hud, minimap, mara, police, combat)
   }
 
   function handleDamage(amount) {
-    if (!missionActive) return;
+    if (!missionActive || mara.state.health <= 0) return;
     mara.state.health = Math.max(0, mara.state.health - amount);
     if (mara.state.health <= 0) {
       onPlayerDeath();

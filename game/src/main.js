@@ -28,7 +28,7 @@ const police=createPolice(graphics.scene,world,vehicles,text=>hud.toast(text));
 police.onWantedChange(detail=>window.dispatchEvent(new CustomEvent('velvet:wanted-change',{detail})));
 const helicopter=createHelicopter(graphics.scene);
 const combat=createCombat(mara,graphics.scene,world,hud,police,audio);
-const missions=createMissions(graphics.scene,world,hud,minimap,mara,police,combat);
+const missions=createMissions(graphics.scene,world,hud,minimap,mara,police,combat,snapInterpolation);
 window.addEventListener('velvet:wanted-change',e=>{
   helicopter.setActive(e.detail.helicopterRequired,night);
   const prev=e.detail.previous,wanted=e.detail.wanted;
