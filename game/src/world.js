@@ -1072,8 +1072,8 @@ export function createCity(scene, mat) {
     return colliders.some(c=>y<c.y+c.h&&Math.abs(x-c.x)<c.w/2+radius&&Math.abs(z-c.z)<c.d/2+radius);
   }
   // Test hook for verification
-  if (typeof window !== 'undefined') window.__vhWorld = { blocked };
-  return {blocked,update,mapBuildings,colliders,seed:73129,palms:palms.length};
+  if (typeof window !== 'undefined') window.__vhWorld = { blocked, update, monorail, lighthouse, tide, train, foodCarts };
+  return {blocked,update,mapBuildings,colliders,seed:73129,palms:palms.length,monorail,lighthouse,tide,train,foodCarts};
 }
 
 export function bridgeHeight(x,z) {

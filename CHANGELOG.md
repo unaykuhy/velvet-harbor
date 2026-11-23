@@ -156,3 +156,10 @@
 - Bus starts at route[0] (240,240) instead of (0,0) — no more diagonal first leg through buildings; terminal halt moved to (240,240) so it dwells; `traffic.reset()` resets the bus.
 - Verified: tests 10/10, tsc 0, Playwright PASS (moved 141.25 m, sawDwell=true, minSpeed=0, 0/0/0); coordinator re-ran: bus on avenue z=240, moved ~357 m / 80 sim-s, 0/0/0; screenshot eye-checked (bus center-frame at Pearlwake intersection).
 - Known gap: boarding never observed (maxPassengers 0) — no ped route passes within 6 m of a halt.
+
+## 2026-11-23 ~21:30 WITA — Milestone 7 extras verification close-out (test hooks + evidence)
+- Test hooks (`world.js` :1075-1076, 2 lines): `window.__vhWorld` + `createCity` return now expose `monorail, lighthouse, tide, train, foodCarts` alongside `blocked, update`.
+- Motion proven by the coordinator driving `__vhWorld.update()` directly (main.js skips world.update in manual test mode): monorail +43.2 m / 10 sim-s (4.5 u/s), train +57.6 m (6 u/s), lighthouse +2.1 rad, tide phase advancing, 0/0/0 errors.
+- Screenshots eye-checked (1280×720, preview/): train, tide, food-cart close-up PASS; monorail MARGINAL PASS (car + headlights + track read; lit windows don't — window strip 2.8 wide is embedded inside the 3.2-wide body); lighthouse = light halo only (no clean tower photo after 6 angles — lamp bloom + buildings; tower/beam proven by code + numeric data).
+- Verified: tests 10/10, tsc 0, main.ts exit 0 (dossier 812,264 B), makefun check 5/0; bundle 645,286 B (sha256 4a69235f…).
+- Known issues: monorail window strip embedded (polish); lighthouse photo gap; pylon-on-avenue placement unverified (0.7 m colliders on avenue centrelines).
