@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-23 — Milestone 3: housing + gate — Sunwick Hills housing + Marigold Gardens + GAPURA (Nemotron 3 Ultra)
+
+- **Housing** (`game/src/world.js`): 3 blocks in Sunwick Hills — 2 housing blocks + 1 Marigold Gardens block. LOCKED denah: 8 houses in a circle (r=14 m) around a central dead-end roundabout ("BUNDARAN BUNTU", (-160,40)), all facing the roundabout; dark roofs, hedge fences, driveways, pines; not enterable; collision correct.
+- **Exit road**: 7 m asphalt from the roundabout straight south through the MIDDLE of Marigold Gardens to the avenue at z=−80, sidewalks + parked cars.
+- **Marigold Gardens** ((-160,−40), 36×32 m): circular path, fountain, 4 flower quadrants, 8 lamps + 4 benches, hedge perimeter.
+- **GAPURA** ((-160,−76)): Art Deco twin plinths, neon cyan/magenta ribs, warm lamps, arched top with "MARIGOLD GARDENS" gold text.
+- Verification (coordinator, independent): tests **10/10**, `tsc` **0 errors**, `node main.ts` **exit 0** (dossier **812,131 B**), `makefun check` **5 passed, 0 failed**. Bundle **627,121 B, sha256 `7a460b05…`**. Session Playwright **0/0/0 errors** + collision checks (roundabout/house/gate blocked, exit road walkable). Screenshots eye-checked: `m3-housing-roundabout.jpg` (`526d0437…`) + `m3-gapura.jpg` (`39becf70…`). Honest notes: both shots are dark; the gate text is not legible at this angle. Full numbers in QA.md (Milestone 3 housing section).
+
 ## 2026-11-23 — Milestone 5: pursuit — Sky Patrol helicopter + Saltgilt Dispatch subtitles + news ticker (Nemotron 3 Ultra)
 
 - **Sky Patrol helicopter** (new `game/src/helicopter.js`, 139 lines; `game/src/main.js` import + create + update call + `velvet.inspect()` exposure): appears at wanted 5, follows the player from ~40 m up (slow circling, rotor spins — measured `rotorSpeed` 427.9), leaves when wanted drops below 5. Listens to the existing `velvet:wanted-change` event (`helicopterRequired`); `police.js` untouched.
