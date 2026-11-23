@@ -46,6 +46,14 @@ function refreshViewVisibility(){
   const first=state.cameraView==='first';
   if(activeCar?.shell)activeCar.shell.visible=!first;
   for(const car of vehicles.cars)if(car!==activeCar&&car.shell)car.shell.visible=true;
+  // Cockpit geometry only exists for the driver's eyes: hidden in chase view and on
+  // every other car — the other parked bays, every police unit (vehicles.external)
+  // and every traffic car (traffic.js pushes into vehicles.cars, hidden explicitly
+  // too for safety) — so nothing odd clings to them. Their shells stay visible.
+  if(activeCar?.interior)activeCar.interior.visible=first;
+  for(const car of vehicles.cars)if(car!==activeCar&&car.interior)car.interior.visible=false;
+  for(const car of police.cars)if(car.interior)car.interior.visible=false;
+  for(const car of traffic.cars)if(car.interior)car.interior.visible=false;
   const hiddenHead=first&&!activeCar;
   for(const part of mara.headParts)part.visible=!hiddenHead;
 }
@@ -237,7 +245,7 @@ function animate(now) {
     }
     const focus=activeCar?activeCar.root.position:mara.root.position;
     if(!testManual){updateCamera(dt,focus);night=graphics.updateDay(state.minutes,focus,materials);
-    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar);updateBodyVisual(dt);}
+    world.update(elapsed,night,focus);vehicles.update(elapsed,night,focus,activeCar,state.cameraView==='first'&&viewBlend>.5?.38:1);updateBodyVisual(dt);}
     else night=graphics.updateDay(state.minutes,focus,materials);
     rain.update(dt,graphics.camera);lanterns.update(elapsed);
     hud.update(state,focus,activeCar,vehicles.nearest(focus),police.wanted,!police.seen);if(frames%3===0)minimap.draw(focus,input.yaw,vehicles.cars,activeCar,police.cars);
@@ -271,6 +279,7 @@ Object.defineProperty(window,'velvet',{value:{
     windowGlow:materials.windowLight.emissiveIntensity,lampGlow:materials.lamp.emissiveIntensity,cameraPosition:graphics.camera.position.toArray(),cameraYaw:input.yaw,cameraSpringYaw,bodyRoll:activeCar?.root.rotation.z||0,bodyPitch:activeCar?.root.rotation.x||0,save:readSave(),
     rainCount:rain.count,lanternCount:lanterns.count,postfx:postfx.info(),
     wanted:police.wanted,trafficCarCount:traffic.cars.filter(c=>c.ai).length,pedestrianCount:pedestrians.people.length,policeCarCount:police.cars.length,
+    bayInteriors:vehicles.cars.map(c=>c.interior?c.interior.visible:null),policeInteriors:police.cars.map(c=>c.interior?c.interior.visible:null),trafficInteriors:traffic.cars.map(c=>c.interior?c.interior.visible:null),
     trafficLights:traffic.inspect(),pedestrians:pedestrians.inspect(),police:police.inspect(),siren:audio.sirenState
   })
 },writable:false});

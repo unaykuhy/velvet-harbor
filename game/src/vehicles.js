@@ -84,18 +84,50 @@ export function buildCar(model) {
     staticParts.get(child.material).push(geometry.index?geometry.toNonIndexed():geometry);root.remove(child);
   }
   for(const [material,geometries] of staticParts){shell.add(new T.Mesh(mergeGeometries(geometries),material));geometries.forEach(g=>g.dispose());}
-  // Driver cockpit: a dashboard with lit gauges and a steering wheel that turns with the
-  // steering input, seen from the first-person driving view. The shell stays separate so it
-  // can be hidden from inside without losing the cockpit.
+  // Driver cockpit: a full-cabin dashboard under a framed windshield (cowl, A-pillars,
+  // header), a hooded gauge cluster with needles behind the wheel and a small dark
+  // rearview mirror, seen from the first-person driving view. Emissive levels stay low
+  // so nothing blooms into glare inside the cabin. The interior is hidden by default
+  // and only shown from the first-person driver view, so nothing odd sticks to the
+  // car in chase view; the shell stays separate so it can be hidden from inside.
   const driverX=-w*.28,eyeY=model.kind==='roadster'?h+.52:h+model.roof*.5;
-  const dashMaterial=standard('#1d2b33',.5,.12),gaugeMaterial=surfaceMaterial({color:'#2a2f33',emissive:'#ffca7a',emissiveIntensity:.95});
-  function interiorPart(x,y,z,a,b,c,material){
-    const mesh=new T.Mesh(new T.BoxGeometry(a,b,c),material);mesh.position.set(x,y,z);interior.add(mesh);return mesh;
+  const dashMaterial=standard('#15222b',.6,.1),cowlMaterial=standard('#0c141b',.85),bezelMaterial=standard('#0a1016',.5,.35);
+  const trimMaterial=surfaceMaterial({color:'#6e5527',emissive:'#c9904f',emissiveIntensity:.32,metalness:.55,roughness:.4});
+  const gaugeMaterial=surfaceMaterial({color:'#241c12',emissive:'#f2b16a',emissiveIntensity:.5});
+  const needleMaterial=standard('#ffe4bd',.45,.2),mirrorMaterial=standard('#111d26',.12,.85);
+  const windshieldMaterial=surfaceMaterial({color:'#9fc0cc',transparent:true,opacity:.07,roughness:.06,metalness:.1,depthWrite:false});
+  function interiorPart(x,y,z,a,b,c,material,tilt=0){
+    const mesh=new T.Mesh(new T.BoxGeometry(a,b,c),material);mesh.position.set(x,y,z);if(tilt)mesh.rotation.x=tilt;interior.add(mesh);return mesh;
   }
-  interiorPart(0,eyeY-.44,-.58,w*.82,.2,.28,dashMaterial);
-  interiorPart(0,eyeY-.35,-.58,w*.84,.05,.32,black);
-  interiorPart(driverX,eyeY-.32,-.72,.24,.11,.03,gaugeMaterial);
-  interiorPart(w*.24,eyeY-.33,-.72,.17,.08,.03,gaugeMaterial);
+  // Dashboard spanning the cabin below the windshield with a matte cowl top, and the
+  // hood slab beyond it (the shell is hidden from this view, so the cockpit supplies
+  // its own hood line instead of exposing bare tarmac under the dash).
+  interiorPart(0,eyeY-.5,-.72,w*.96,.42,.5,dashMaterial);
+  interiorPart(0,eyeY-.28,-.78,w*.96,.05,.36,cowlMaterial);
+  interiorPart(0,eyeY-.52,-1.65,w*1.08,.16,1.5,paint,.045);
+  // Thin dim Art Deco trim lines along the dash face: readable at blue hour, never blinding.
+  interiorPart(0,eyeY-.38,-.465,w*.92,.02,.03,trimMaterial);
+  interiorPart(0,eyeY-.6,-.465,w*.92,.012,.025,trimMaterial);
+  // Instrument cluster hooded behind the wheel: dim amber dials with pale needles.
+  interiorPart(driverX,eyeY-.26,-.68,.44,.18,.26,bezelMaterial);
+  interiorPart(driverX,eyeY-.28,-.56,.36,.12,.02,gaugeMaterial,.15);
+  interiorPart(driverX-.06,eyeY-.26,-.545,.016,.065,.01,needleMaterial,.15);
+  interiorPart(driverX+.06,eyeY-.27,-.545,.016,.045,.01,needleMaterial,.15);
+  // Passenger side: dark panel with one small dim indicator (no glare source there).
+  interiorPart(w*.28,eyeY-.3,-.44,.2,.11,.03,bezelMaterial);
+  interiorPart(w*.28,eyeY-.3,-.422,.14,.03,.012,gaugeMaterial);
+  // Windshield frame: cowl base, body-coloured A-pillars and a header, so the cabin
+  // reads as a car interior instead of a floating camera.
+  interiorPart(0,eyeY-.27,-1.02,w*.98,.1,.14,cowlMaterial);
+  interiorPart(-w*.47,eyeY+.04,-1,w*.05,.62,.13,paint);
+  interiorPart(w*.47,eyeY+.04,-1,w*.05,.62,.13,paint);
+  interiorPart(0,eyeY+.33,-.97,w*.94,.1,.16,paint);
+  // Small dark rearview mirror hung under the header: dark surface with a trim back,
+  // not a rendered mirror.
+  interiorPart(0,eyeY+.245,-.9,.3,.1,.05,bezelMaterial);
+  interiorPart(0,eyeY+.245,-.866,.26,.078,.012,mirrorMaterial);
+  // Barely-there glass tint so the windshield plane reads without fogging the view.
+  interiorPart(0,eyeY+.03,-.98,w*.9,.58,.012,windshieldMaterial,.08);
   const wheelGeometries=[new T.TorusGeometry(.17,.024,10,20)];
   for(const angle of [-1.05,0,1.05]){const spoke=new T.BoxGeometry(.31,.045,.03);spoke.rotateZ(angle);wheelGeometries.push(spoke);}
   const hub=new T.CylinderGeometry(.05,.05,.06,10);hub.rotateX(Math.PI/2);wheelGeometries.push(hub);
@@ -110,6 +142,7 @@ export function buildCar(model) {
     interiorParts.get(child.material).push(geometry.index?geometry.toNonIndexed():geometry);interior.remove(child);
   }
   for(const [material,geometries] of interiorParts){interior.add(new T.Mesh(mergeGeometries(geometries),material));geometries.forEach(g=>g.dispose());}
+  interior.visible=false;
   root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
   return {root,shell,interior,steeringWheel:wheelSpin,driverEye:new T.Vector3(driverX,eyeY,.12),wheels,frontWheels,beam,smoke,paint,model,speed:0,steer:0,heading:0,damage:0,owned:false};
 }
@@ -175,12 +208,15 @@ export function createVehicles(scene) {
     car.paint.color.set(car.model.color).multiplyScalar(1-car.damage*.003);
   }
   const headlight=new T.SpotLight('#ffe8b3',0,38,.65,.7,1.5);scene.add(headlight,headlight.target);
-  function update(time,night,focus,active) {
-    headlight.visible=!!active&&night>.1;headlight.intensity=active?night*25:0;
+  // lightLevel lets the first-person driver view rein in the headlight pools: the camera
+  // sits inside the light cone there, so the un-dimmed pools saturate the wet road into
+  // a blown-white wedge at the bottom of the screen. Chase view keeps the full level.
+  function update(time,night,focus,active,lightLevel=1) {
+    headlight.visible=!!active&&night>.1;headlight.intensity=active?night*25*lightLevel:0;
     if(active){headlight.position.copy(active.root.position).add(new T.Vector3(0,1,0));headlight.target.position.copy(active.root.position).add(new T.Vector3(-Math.sin(active.heading)*18,0,-Math.cos(active.heading)*18));}
     for(const car of cars){
       car.root.visible=car===active||car.root.position.distanceToSquared(focus)<100*100;
-      car.beam.intensity=night*15;
+      car.beam.intensity=night*15*lightLevel;
       car.smoke.children.forEach((p,i)=>{
         const dust=car===active&&Math.abs(car.speed)>8&&Math.abs(car.steer)>.25;
         p.visible=car.damage>40||dust;
