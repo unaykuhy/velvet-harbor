@@ -306,6 +306,101 @@ export function createCity(scene, mat) {
   }
   sign('SALTGILT',-17,10,132,20,'#f3bc98',Math.PI/2);
   sign('PEARLWAKE BOULEVARD',15,6.5,180,13,'#f9d69e',-Math.PI/2);
+  // ── MILESTONE 3e — BEACHFRONT LANDMARKS (Pearlwake sand, z 255..300) ──
+  // Giltwheel Fair (west sand): slow-turning Ferris wheel with neon gondolas,
+  // fair stalls and colored fairground lights. Wheel is a live Group so its
+  // rotation can be driven from update(); supports/stalls are baked + solid.
+  const fair={x:-196,z:278};
+  ground(fair.x,fair.z,76,48,mat.sidewalk,.02);
+  sign('GILTWHEEL FAIR',fair.x,23.5,fair.z-15.5,17,'#ffd97a',0);
+  for(const s of [-1,1]) {
+    cylinder(fair.x+s*2.4,8.8,fair.z-2.4,.5,.72,17.6,mat.steel);
+    cylinder(fair.x+s*2.4,8.8,fair.z+2.4,.5,.72,17.6,mat.steel);
+    solid(fair.x+s*2.4,fair.z-2.4,1.4,1.4,17.6);solid(fair.x+s*2.4,fair.z+2.4,1.4,1.4,17.6);
+  }
+  cylinder(fair.x,17.6,fair.z,1.15,.95,2.6,mat.steel);
+  solid(fair.x,fair.z,3,3,17.6);
+  const wheel=new T.Group();wheel.position.set(fair.x,17.6,fair.z);
+  const wheelRim=new T.Mesh(new T.TorusGeometry(14,.34,8,44),standard('#d8b34a'));
+  wheelRim.castShadow=true;wheel.add(wheelRim);
+  const wheelRimInner=new T.Mesh(new T.TorusGeometry(11.6,.2,8,44),standard('#b8923a'));
+  wheel.add(wheelRimInner);
+  for(let s=0;s<8;s++) {
+    const a=s/8*Math.PI*2;
+    const spoke=new T.Mesh(new T.CylinderGeometry(.13,.13,14,6),mat.steel);
+    spoke.position.set(Math.sin(a)*7,Math.cos(a)*7,0);spoke.rotation.z=-a;
+    spoke.castShadow=true;wheel.add(spoke);
+  }
+  const gondolas=[];
+  for(let g=0;g<8;g++) {
+    const a=g/8*Math.PI*2,arm=new T.Group();
+    arm.position.set(Math.sin(a)*14,Math.cos(a)*14,0);
+    const bar=new T.Mesh(new T.CylinderGeometry(.07,.07,1.5,6),mat.steel);bar.position.y=-.75;arm.add(bar);
+    const cabin=new T.Mesh(new T.BoxGeometry(2,2.4,1.5),standard(g%2?'#37e6ff':'#ff4fd8'));
+    cabin.position.y=-2.1;cabin.castShadow=true;arm.add(cabin);
+    const trim=new T.Mesh(new T.BoxGeometry(2.2,.24,1.7),mat.lamp);trim.position.y=-1.1;arm.add(trim);
+    wheel.add(arm);gondolas.push(arm);
+  }
+  scene.add(wheel);
+  const stalls=[[-228,262],[-166,264],[-226,292]];
+  for(const [sx,sz] of stalls) {
+    box(sx,1.1,sz,4.6,2.2,2.6,mat.trim);
+    box(sx,2.32,sz,5.3,.2,3.2,mat.pink);
+    box(sx,2.44,sz,5.3,.1,3.2,mat.yellow);
+    box(sx+1.4,2.05,sz,1.4,.7,2,mat.lamp);
+    solid(sx,sz,4.6,2.6,2.4);
+  }
+  const fairLightColors=[mat.pink,mat.yellow,standard('#5fd6ff')];
+  for(let i=0;i<10;i++) {
+    const a=i/10*Math.PI*2,lx=fair.x+Math.cos(a)*22,lz=fair.z+Math.sin(a)*14;
+    if(stalls.some(([sx,sz])=>Math.abs(sx-lx)<3.4&&Math.abs(sz-lz)<3.4))continue;
+    cylinder(lx,1.7,lz,.06,.1,3.4,mat.steel);
+    bake(new T.SphereGeometry(.18,7,5),fairLightColors[i%3],lx,3.5,lz);
+    solid(lx,lz,.3,.3,3.4);
+  }
+  lampPositions.push(new T.Vector3(fair.x,5,fair.z-6));
+  // Ironshore Fitness (center sand): small static open-air gym, blue-hour lamps.
+  ground(20,274,32,24,mat.sidewalk,.02);
+  sign('IRONSHORE FITNESS',20,4.4,285.4,15,'#8fd8ff',0);
+  cylinder(12,1.55,268,.07,.1,3.1,mat.steel);cylinder(16,1.55,268,.07,.1,3.1,mat.steel);
+  box(14,3.06,268,4.5,.12,.12,mat.steel);
+  solid(12,268,.4,.4,3.1);solid(16,268,.4,.4,3.1);
+  for(const dz of [-.9,.9]) {
+    cylinder(20,1.05,270+dz,.07,.1,2.1,mat.steel);cylinder(24,1.05,270+dz,.07,.1,2.1,mat.steel);
+    box(22,2.05,270+dz,4.5,.1,.1,mat.steel);
+    solid(20,270+dz,.4,.4,2.1);solid(24,270+dz,.4,.4,2.1);
+  }
+  box(26.5,.72,278,2.5,.5,1.1,mat.trim);box(26.5,1.85,278,2.5,.18,.6,mat.trim);solid(26.5,278,2.5,1.1,2);
+  cylinder(13,1.15,282,.08,.12,2.3,mat.steel);cylinder(15.5,1.15,282,.08,.12,2.3,mat.steel);
+  box(14.25,2.24,282,3,.14,.14,mat.steel);solid(13,282,.5,.5,2.3);solid(15.5,282,.5,.5,2.3);
+  bench(21,280,0);bench(11,277,Math.PI/2);
+  for(const [lx,lz] of [[7,263],[33,263],[7,285],[33,285]]) {
+    cylinder(lx,1.9,lz,.07,.12,3.8,mat.steel);
+    box(lx+.75,3.8,lz,.7,.12,.5,mat.lamp);
+    lampPositions.push(new T.Vector3(lx+.75,3.6,lz));
+    solid(lx,lz,.35,.35,3.8);
+  }
+  // Beach umbrellas + loungers (east sand) with sunbathing citizens.
+  const umbrellaColors=[standard('#ff5f6d'),standard('#ffd166'),standard('#4fc3f7'),standard('#9575cd')];
+  const parasols=[[136,268,0],[148,282,.5],[166,270,.9],[184,286,.2],[204,272,.7],[224,284,.4],[241,268,1.1]];
+  for(let i=0;i<parasols.length;i++) {
+    const [px,pz,tilt]=parasols[i];
+    cylinder(px,1.35,pz,.05,.08,2.7,mat.steel);
+    const canopy=new T.Mesh(new T.ConeGeometry(2.7,1.1,10),umbrellaColors[i%4]);
+    canopy.position.set(px,3.1,pz);canopy.rotation.z=tilt*.22;canopy.castShadow=true;scene.add(canopy);
+    solid(px,pz,.35,.35,2.7);
+    const lx=px+2.9,lz=pz+(i%2?1.3:-1.3);
+    box(lx,.42,lz,2.2,.14,.78,mat.trim);
+    bake(new T.BoxGeometry(1,.12,.76),mat.trim,lx-.9,.86,lz,0,0,-.62);
+    box(lx-.85,.2,lz,.1,.42,.7,mat.steel);box(lx+.85,.2,lz,.1,.42,.7,mat.steel);
+    solid(lx,lz,2.3,1.1,.8);
+  }
+  const sunbathers=[[148,282,.6,-.4],[184,286,.6,.9],[166,272.8,.18,2.2]];
+  for(let i=0;i<sunbathers.length;i++) {
+    const [px,py,pz,ry]=sunbathers[i];
+    const person=buildCitizen(scene,i+3);
+    person.root.position.set(px,py,pz);person.root.rotation.set(-Math.PI/2,0,ry);
+  }
   // Distant headlands make the sea read as a bay.
   for(let i=0;i<16;i++)bake(new T.ConeGeometry(70+random()*65,50+random()*95,9),standard('#73968b'),-650+i*110,8,-620-random()*100);
   for(const batch of batches.values()) {
@@ -321,6 +416,8 @@ export function createCity(scene, mat) {
   for(let i=0;i<3;i++){const light=new T.PointLight('#ffd49b',0,21,2);scene.add(light);nightLights.push(light);}
   function update(time,night,focus) {
     waterMaterial.uniforms.time.value=time;waterMaterial.uniforms.night.value=night;
+    wheel.rotation.z=time*.12;
+    for(let g=0;g<gondolas.length;g++)gondolas[g].rotation.z=-wheel.rotation.z;
     palms.forEach((p,index)=>{for(let l=0;l<9;l++){
       transform.position.set(p.x+.1,p.h,p.z);transform.rotation.set((l%2)*.13+Math.sin(time*1.1+index*.7)*.035,l/9*Math.PI*2+index,-.1+Math.sin(time*.9+index+l*.4)*.045);transform.scale.setScalar(.8+(index%4)*.08);transform.updateMatrix();leaves.setMatrixAt(index*9+l,transform.matrix);
     }});leaves.instanceMatrix.needsUpdate=true;
