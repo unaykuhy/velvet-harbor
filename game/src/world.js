@@ -531,6 +531,10 @@ export function createCity(scene, mat) {
   for(let z=-244;z<=244;z+=48) if(avenues.every(a=>Math.abs(z-a)>16)) {
     bench(12.6,z,Math.PI/2);bench(-12.6,z,-Math.PI/2);
   }
+  // Milestone 4 sitters: real benches for their peds.js targets, all >16 from avenues and zebra crossings.
+  for(const z of [216,104,24]) {
+    bench(12.6,z,Math.PI/2);bench(-12.6,z,-Math.PI/2);
+  }
   for(const [px,pz] of [[40,200],[-200,-40]]) {
     bench(px+9,pz,-Math.PI/2);bench(px-9,pz,Math.PI/2);bench(px,pz+9,Math.PI);bench(px,pz-9,0);
   }

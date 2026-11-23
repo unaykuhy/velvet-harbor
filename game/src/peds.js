@@ -320,7 +320,32 @@ export function buildCitizen(scene, index = 0, officer = false) {
     }
     root.position.y = 0.14 + Math.abs(Math.sin(phase)) * 0.025;
   }
-  return {root, animate};
+  return {root, animate, limbs};
+}
+
+const BENCHES = [
+  {x: 12.6, z: 140, ry: Math.PI / 2}, {x: -12.6, z: 140, ry: -Math.PI / 2},
+  {x: 12.6, z: 188, ry: Math.PI / 2}, {x: -12.6, z: 188, ry: -Math.PI / 2},
+  {x: 12.6, z: 216, ry: Math.PI / 2}, {x: -12.6, z: 216, ry: -Math.PI / 2},
+  {x: 12.6, z: 104, ry: Math.PI / 2},  {x: -12.6, z: 104, ry: -Math.PI / 2},
+  {x: 12.6, z: 24, ry: Math.PI / 2},  {x: -12.6, z: 24, ry: -Math.PI / 2},
+  {x: 12.6, z: 44, ry: Math.PI / 2},  {x: -12.6, z: 44, ry: -Math.PI / 2},
+];
+
+const SITTER_INDICES = [0, 4, 8, 12];
+const SEAT_HEIGHT = 0.57;
+const HIP_OFFSET = 0.87;
+const APPROACH_OFFSET = 0.6;
+
+function benchApproachPoint(bench) {
+  return new T.Vector3(bench.x + Math.sin(bench.ry) * APPROACH_OFFSET, 0, bench.z + Math.cos(bench.ry) * APPROACH_OFFSET);
+}
+
+function applySeatedPose(limbs, seated) {
+  for (const l of limbs) {
+    l.leg.rotation.x = seated ? -Math.PI / 2 : 0;
+    l.arm.rotation.x = seated ? -0.6 : 0;
+  }
 }
 
 export function createPedestrians(scene, world, traffic, onHit) {
@@ -328,20 +353,80 @@ export function createPedestrians(scene, world, traffic, onHit) {
   for (let i = 0; i < 16; i++) {
     const person = buildCitizen(scene, i), x = [0, 80, -80, 160][i % 4], z = [160, 240, 80, 0][Math.floor(i / 4)];
     person.route = [[x - 12, z + 8.5], [x + 12, z + 8.5], [x + 12, z + 29], [x + 12, z + 8.5], [x - 12, z + 8.5], [x - 12, z + 29]];
-    person.index = i; person.target = i % 2 ? 1 : 0; person.root.position.set(x + (i % 2 ? -12 : 12), 0.14, z + 8.5); person.flee = 0; person.cooldown = 0; person.crossing = false; people.push(person);
+    person.index = i; person.target = i % 2 ? 1 : 0; person.root.position.set(x + (i % 2 ? -12 : 12), 0.14, z + 8.5); person.flee = 0; person.cooldown = 0; person.crossing = false;
+    if (SITTER_INDICES.includes(i)) {
+      const bench = BENCHES.find(b => Math.hypot(b.x - x, b.z - z) < 30) || BENCHES[0];
+      person.bench = bench;
+      person.approachPoint = benchApproachPoint(bench);
+      person.state = 'walking';
+      person.seekBenchTimer = 0;
+      person.sitTimer = 0;
+      person.heightScale = 0.92 + seededRandom(i * 137 + 42 + 7) * 0.16;
+    }
+    people.push(person);
   }
   function update(dt, active, focus, allCars) {
     for (const p of people) {
       p.cooldown = Math.max(0, p.cooldown - dt); const at = p.root.position;
+      if (!isFinite(at.x) || !isFinite(at.z) || (Math.abs(at.x) < 0.1 && Math.abs(at.z) < 0.1 && p.bench)) {
+        console.log(`[WARN] Sitter ${p.index} bad pos=(${at.x},${at.z}) state=${p.state}`);
+      }
       const carPosition = active?.root.position;
       const relativeX = carPosition ? at.x - carPosition.x : 999, relativeZ = carPosition ? at.z - carPosition.z : 999;
       const touching = active && Math.abs(relativeX * Math.cos(active.heading) - relativeZ * Math.sin(active.heading)) < active.model.width / 2 + 0.35 && Math.abs(relativeX * Math.sin(active.heading) + relativeZ * Math.cos(active.heading)) < active.model.length / 2 + 0.25;
       if (touching && Math.abs(active.speed) > 3 && p.cooldown === 0) {
-        p.flee = 4; p.cooldown = 7; p.away = new T.Vector3(at.x - active.root.position.x, 0, at.z - active.root.position.z).normalize(); if (p.away.lengthSq() < 0.1) p.away.set(1, 0, 0); hits++; onHit();
+        p.flee = 4; p.cooldown = 7;
+        const awayVec = new T.Vector3(at.x - active.root.position.x, 0, at.z - active.root.position.z);
+        if (awayVec.lengthSq() < 0.01) awayVec.set(1, 0, 0); else awayVec.normalize();
+        p.away = awayVec; hits++; onHit();
       }
       let speed = 1.2 + (p.index % 3) * 0.13, dx, dz; p.crossing = false;
+      if (!isFinite(at.x) || !isFinite(at.z)) { at.set(0, 0.14, 0); }
+      if (p.bench) {
+        const bench = p.bench;
+        const distToBench = Math.hypot(at.x - bench.x, at.z - bench.z);
+        if (p.state === 'walking' && p.flee === 0) {
+          p.seekBenchTimer -= dt;
+          if (p.seekBenchTimer <= 0) {
+            p.state = 'seeking_bench';
+            p.seekBenchTimer = 20 + Math.random() * 30;
+            const ap = p.approachPoint;
+            dx = ap.x - at.x; dz = ap.z - at.z; const d = Math.hypot(dx, dz);
+            if (isFinite(d) && d > 0.5) { dx /= d; dz /= d; speed = 1.5; } else { dx = 0; dz = 0; speed = 0; }
+          }
+        }
+        if (p.state === 'seeking_bench') {
+          const ap = p.approachPoint;
+          dx = ap.x - at.x; dz = ap.z - at.z; const d = Math.hypot(dx, dz);
+          if (!isFinite(d) || d < 0.5) {
+            console.log(`[Sitter ${p.index}] reached bench, sitting`);
+            p.state = 'sitting';
+            p.sitTimer = 15 + Math.random() * 10;
+            at.set(bench.x, 0.14, bench.z);
+            p.root.rotation.y = bench.ry + Math.PI;
+            applySeatedPose(p.limbs, true);
+            speed = 0; dx = 0; dz = 0;
+          } else {
+            dx /= d; dz /= d; speed = 1.5;
+          }
+        }
+        if (p.state === 'sitting') {
+          p.sitTimer -= dt;
+          if (p.sitTimer <= 0) {
+            console.log(`[Sitter ${p.index}] leaving bench`);
+            p.state = 'leaving';
+          }
+          applySeatedPose(p.limbs, true);
+          speed = 0; dx = 0; dz = 0;
+        }
+        if (p.state === 'leaving') {
+          p.state = 'walking';
+          at.y = 0.14;
+          applySeatedPose(p.limbs, false);
+        }
+      }
       if (p.flee > 0) { p.flee -= dt; dx = p.away.x; dz = p.away.z; speed = 4.5; }
-      else {
+      else if (p.state === 'walking') {
         const goal = p.route[p.target]; dx = goal[0] - at.x; dz = goal[1] - at.z; const distance = Math.hypot(dx, dz);
         if (distance < 0.15) { p.target = (p.target + 1) % p.route.length; continue; }
         dx /= distance; dz /= distance;
@@ -352,12 +437,18 @@ export function createPedestrians(scene, world, traffic, onHit) {
           const incoming = allCars.some(c => { const cp = c.root.position; return Math.abs(cp.x - at.x) < 5 && Math.abs(cp.z - at.z) < 9 && Math.abs(c.speed) > 1; });
           if ((!inside && !safe) || incoming) speed = 0; else { p.crossing = true; crossings++; speed = 2; }
         }
+      } else if (p.state !== 'seeking_bench') {
+        speed = 0; dx = 0; dz = 0;
       }
-      const nx = at.x + dx * speed * dt, nz = at.z + dz * speed * dt;
-      if (!world.blocked(nx, nz, 0.28, 1)) at.set(nx, at.y, nz); else if (p.flee > 0) { p.away.set(-p.away.z, 0, p.away.x); }
-      if (speed > 0) p.root.rotation.y = Math.atan2(-dx, -dz); p.animate(dt, speed); p.root.visible = at.distanceToSquared(focus) < 105 * 105;
+      if (p.state !== 'sitting') {
+        const nx = at.x + dx * speed * dt, nz = at.z + dz * speed * dt;
+        if (!world.blocked(nx, nz, 0.28, 1)) at.set(nx, at.y, nz); else if (p.flee > 0) { p.away.set(-p.away.z, 0, p.away.x); }
+        if (speed > 0 && p.state !== 'sitting') p.root.rotation.y = Math.atan2(-dx, -dz);
+      }
+      if (p.state !== 'sitting') p.animate(dt, speed);
+      p.root.visible = at.distanceToSquared(focus) < 105 * 105;
     }
   }
-  function reset() { crossings = 0; hits = 0; for (const p of people) { p.target = p.index % 2 ? 1 : 0; const start = p.route[p.index % 2 ? 0 : 1]; p.root.position.set(start[0], 0.14, start[1]); p.flee = 0; p.cooldown = 0; } }
-  return {people, update, reset, inspect: () => ({count: people.length, crossings, hits, people: people.map(p => ({position: p.root.position.toArray(), crossing: p.crossing, flee: p.flee}))})};
+  function reset() { crossings = 0; hits = 0; for (const p of people) { p.target = p.index % 2 ? 1 : 0; const start = p.route[p.index % 2 ? 0 : 1]; p.root.position.set(start[0], 0.14, start[1]); p.flee = 0; p.cooldown = 0; if (p.bench) { p.state = 'walking'; p.seekBenchTimer = 0; p.sitTimer = 0; applySeatedPose(p.limbs, false); } } }
+  return {people, update, reset, inspect: () => ({count: people.length, crossings, hits, people: people.map(p => ({position: p.root.position.toArray(), crossing: p.crossing, flee: p.flee, state: p.state}))})};
 }
