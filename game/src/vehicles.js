@@ -10,8 +10,8 @@ export const vehicleModels = [
   {name:'Orison Meridian',length:5.45,width:2,height:1.25,color:'#435b7c',power:11,top:43,roof:.8,kind:'saloon'},
   {name:'Serein Drift',length:4.5,width:1.9,height:.95,color:'#bf6f6d',power:16,top:49,roof:.4,kind:'roadster'},
   {name:'Marlowe Viceroy',length:5.3,width:2.04,height:1.15,color:'#d8bd7f',power:11,top:41,roof:1,kind:'vintage'},
-  {name:'Kestrel Dart',length:2.2,width:.8,height:1.1,color:'#6a9bc4',power:17,top:52,roof:0,kind:'sportbike'},
-  {name:'Briar Heritage',length:2.3,width:.85,height:1.12,color:'#a67c6e',power:12,top:38,roof:0,kind:'classic-bike'},
+  {name:'Kestrel Dart',length:2.2,width:.8,height:1.1,color:'#6aa0c8',power:17,top:52,roof:0,kind:'sportbike'},
+  {name:'Briar Heritage',length:2.3,width:.85,height:1.12,color:'#a87e70',power:12,top:38,roof:0,kind:'classic-bike'},
 ];
 
 function isMotorcycle(model){return model.kind==='sportbike'||model.kind==='classic-bike';}
@@ -87,7 +87,7 @@ function buildBike(model) {
   const jacket=standard(sport?'#e8dcc8':'#d4c4a8',.76),denim=standard(sport?'#3a5a7a':'#8b7d6b',.9),boots=standard(sport?'#2a3a4a':'#6b5b4a',.82),helmet=standard(sport?'#d5dce2':'#e8dcc8',.3,.38);
   function riderMesh(geometry,material){return mesh(geometry,material,rider);}
   function riderRod(a,b,r,material){return rod(a,b,r,material,rider);}
-  const lean=sport?-.58:-.08,hipZ=sport?.35:.39,shoulderZ=sport?.02:.31;
+  const lean=sport?-.60:-.08,hipZ=sport?.35:.39,shoulderZ=sport?.02:.31;
   const torso=riderMesh(new T.CapsuleGeometry(.18,.4,5,12),jacket);torso.position.set(0,sport?1.23:1.3,sport?.22:.35);torso.rotation.x=lean;
   const headPosition=[0,sport?1.57:1.69,sport?-.08:.27];
   const head=riderMesh(new T.SphereGeometry(.165,20,14),helmet);head.position.set(...headPosition);
@@ -306,7 +306,7 @@ export function buildCar(model) {
 export function createVehicles(scene) {
   const cars=[];
   const external=[];
-  const positions=[[5,149,0],[-6,116,0],[86,181,Math.PI],[153,92,0],[-74,195,Math.PI/2],[6,-35,0],[-86,-108,Math.PI],[166,-186,0],[-153,-50,Math.PI],[231,138,0],[-230,74,Math.PI],[-35,233,Math.PI/2],[111,7,Math.PI/2],[75,-234,Math.PI/2],[6,59,0],[5,174,0],[-6,139,0],[153,116,Math.PI]];
+  const positions=[[5,149,0],[-6,116,0],[86,181,Math.PI],[153,92,0],[-74,195,Math.PI/2],[6,-35,0],[-86,-109,Math.PI],[166,-186,0],[-153,-50,Math.PI],[231,138,0],[-230,74,Math.PI],[-35,233,Math.PI/2],[111,7,Math.PI/2],[75,-234,Math.PI/2],[6,59,0],[5,174,0],[-6,139,0],[153,116,Math.PI]];
   positions.forEach(([x,z,heading],index)=>{
     const car=buildCar(vehicleModels[index%8]);car.id=`bay-${index}`;car.root.position.set(x,.02,z);car.heading=heading;car.root.rotation.y=heading;scene.add(car.root);cars.push(car);
   });
@@ -357,7 +357,7 @@ export function createVehicles(scene) {
       }
     }else car.root.position.copy(next);
     car.root.position.y=bridgeHeight(car.root.position.x,car.root.position.z)+.02;
-    const motorcycle=isMotorcycle(car.model),rollLimit=motorcycle?.48:.025,rollScale=motorcycle?.018:.003;
+    const motorcycle=isMotorcycle(car.model),rollLimit=motorcycle?.48:.025,rollScale=motorcycle?.019:.003;
     car.root.rotation.set(0,car.heading,T.MathUtils.clamp(-car.steer*car.speed*rollScale,-rollLimit,rollLimit));
     car.wheels.forEach(w=>w.rotation.x-=car.speed*dt/.4);
     car.frontWheels.forEach(w=>w.rotation.y=car.steer);
@@ -406,7 +406,7 @@ export function animateAICar(car,dt) {
   car.root.rotation.y=car.heading;
   if(isMotorcycle(car.model)){
     const target=T.MathUtils.clamp(-turn*Math.abs(car.speed)*.12,-.42,.42);
-    car.root.rotation.z=T.MathUtils.damp(car.root.rotation.z,target,7,dt);
+    car.root.rotation.z=T.MathUtils.damp(car.root.rotation.z,target,7.5,dt);
   }
   for(const wheel of car.wheels)wheel.rotation.x-=car.speed*dt/.4;
   for(const wheel of car.frontWheels)wheel.rotation.y=car.steer||0;
